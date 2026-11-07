@@ -210,50 +210,59 @@ describe('GameEngine portals', () => {
     expect(engine.state.pacman.position).toEqual({ lng: 0.6225, lat: 0.5 })
   })
 
-  it('wins when the final pellet is collected', () => {
+  it('reports a vacant house after holding nearby for one second and wins when all are reported', () => {
     const clearMap: PlayableMap = {
-      bounds: {
-        north: 25.0005,
-        south: 24.9995,
-        east: 121.0005,
-        west: 120.9995,
-      },
-      center: {
-        lng: 121,
-        lat: 25,
-      },
-      nodes: [
-        { id: 'spawn', lng: 120.9998, lat: 25, neighbors: ['goal'] },
-        { id: 'goal', lng: 121.0002, lat: 25, neighbors: ['spawn'] },
-        { id: 'ghost-a', lng: 120.9996, lat: 24.9996, neighbors: [] },
-        { id: 'ghost-b', lng: 121.0004, lat: 24.9996, neighbors: [] },
-        { id: 'ghost-c', lng: 120.9996, lat: 25.0004, neighbors: [] },
-        { id: 'ghost-d', lng: 121.0004, lat: 25.0004, neighbors: [] },
+      ...roadMap,
+      vacantHouses: [
+        { id: 'house-a', lat: 0.5, lng: 0.5, status: 'vacant' },
       ],
-      edges: [
-        { id: 'spawn-goal', from: 'spawn', to: 'goal', kind: 'road', length: 60 },
-      ],
-      pellets: [
-        { id: 'p1', edgeId: 'spawn-goal', progress: 0.5, lng: 121, lat: 25, power: false },
-      ],
-      powerPellets: [],
-      vacantHouses: [],
-      spawnNodeId: 'spawn',
-      ghostHomeNodeIds: ['ghost-a', 'ghost-b', 'ghost-c', 'ghost-d'],
-      sourceMode: 'road',
     }
 
     const engine = new GameEngine(clearMap)
-    engine.setDirection('right')
+    engine.state.pacman.position = { lat: 0.5, lng: 0.5 }
     engine.start()
-    let now = performance.now()
-    for (let step = 0; step < 20; step += 1) {
-      now += 80
-      engine.tick(now)
-    }
 
-    expect(engine.state.remainingPellets).toBe(0)
+    const start = performance.now()
+    engine.tick(start)
+    expect(engine.state.reportProgress.progress).toBeGreaterThanOrEqual(0)
+    expect(engine.state.vacantHouses[0]?.status).toBe('vacant')
+
+    engine.tick(start + 1_050)
+    expect(engine.state.vacantHouses[0]?.status).toBe('reported')
+    expect(engine.state.remainingVacant).toBe(0)
+    expect(engine.state.reportedVacant).toBe(1)
     expect(engine.state.status).toBe('win')
+    expect(engine.drainEvents().some((event) => event.type === 'report')).toBe(true)
+  })
+
+  it('keeps reported houses after losing a life but resets them on restart', () => {
+    const clearMap: PlayableMap = {
+      ...roadMap,
+      vacantHouses: [
+        { id: 'house-a', lat: 0.5, lng: 0.5, status: 'vacant' },
+        { id: 'house-b', lat: 0.51, lng: 0.5, status: 'vacant' },
+      ],
+    }
+    const engine = new GameEngine(clearMap)
+    engine.state.vacantHouses[0].status = 'reported'
+    engine.state.remainingVacant = 1
+    engine.state.reportedVacant = 1
+    engine.state.lives = 2
+    engine.state.status = 'dying'
+    ;(engine as any).pendingRespawn = true
+    ;(engine as any).pendingGameover = false
+    ;(engine as any).deathResolveAt = 0
+
+    engine.tick(performance.now() + 10)
+
+    expect(engine.state.vacantHouses[0]?.status).toBe('reported')
+    expect(engine.state.reportedVacant).toBe(1)
+    expect(engine.state.status).toBe('preview')
+
+    engine.restart()
+    expect(engine.state.vacantHouses.every((house) => house.status === 'vacant')).toBe(true)
+    expect(engine.state.remainingVacant).toBe(2)
+    expect(engine.state.reportedVacant).toBe(0)
   })
 
   it('spawns a bonus fruit after enough pellets have been eaten', () => {

@@ -18,7 +18,8 @@ describe('generatePlayableMap', () => {
     const map = generatePlayableMap(viewport, { nodes: [], edges: [] })
     expect(map.sourceMode).toBe('generated')
     expect(map.nodes.length).toBeGreaterThan(20)
-    expect(map.pellets.length + map.powerPellets.length).toBeGreaterThan(30)
+    expect(map.pellets).toEqual([])
+    expect(map.powerPellets).toEqual([])
   })
 
   it('keeps real road geometry when a decent graph exists', () => {
@@ -60,7 +61,8 @@ describe('generatePlayableMap', () => {
     expect(['road', 'hybrid']).toContain(map.sourceMode)
     expect(map.edges.length).toBeGreaterThan(0)
     expect(map.nodes.length).toBeLessThanOrEqual(roadData.nodes.length)
-    expect(map.pellets.length).toBeGreaterThan(0)
+    expect(map.pellets).toEqual([])
+    expect(map.powerPellets).toEqual([])
   })
 
   it('assigns four ghost home nodes when enough nodes exist', () => {
@@ -126,60 +128,19 @@ describe('generatePlayableMap', () => {
     }
 
     const map = generatePlayableMap(viewport, roadData)
-    const intersection = { lng: 121.5, lat: 25.04 }
-    const nearIntersection = [...map.pellets, ...map.powerPellets].filter((pellet) => {
-      const dx = (pellet.lng - intersection.lng) * 111_320
-      const dy = (pellet.lat - intersection.lat) * 111_320
-      return Math.hypot(dx, dy) < 25
-    })
-
-    expect(nearIntersection.length).toBe(0)
+    expect(map.pellets).toEqual([])
+    expect(map.powerPellets).toEqual([])
   })
 
-  it('distributes pellets across chained road segments instead of only the middle gap', () => {
-    const roadData: RoadData = {
-      nodes: [
-        { id: 'a', lng: 121.48, lat: 25.04, neighbors: ['b'] },
-        { id: 'b', lng: 121.485, lat: 25.04, neighbors: ['a', 'c', 'i'] },
-        { id: 'c', lng: 121.49, lat: 25.04, neighbors: ['b', 'd'] },
-        { id: 'd', lng: 121.495, lat: 25.04, neighbors: ['c', 'e', 'j'] },
-        { id: 'e', lng: 121.50, lat: 25.04, neighbors: ['d', 'f'] },
-        { id: 'f', lng: 121.505, lat: 25.04, neighbors: ['e', 'g', 'k'] },
-        { id: 'g', lng: 121.51, lat: 25.04, neighbors: ['f', 'h', 'l'] },
-        { id: 'h', lng: 121.515, lat: 25.04, neighbors: ['g'] },
-        { id: 'i', lng: 121.485, lat: 25.045, neighbors: ['b', 'j'] },
-        { id: 'j', lng: 121.495, lat: 25.045, neighbors: ['i', 'd', 'k'] },
-        { id: 'k', lng: 121.505, lat: 25.045, neighbors: ['j', 'f', 'l'] },
-        { id: 'l', lng: 121.51, lat: 25.045, neighbors: ['k', 'g'] },
+  it('attaches vacant houses supplied by the caller', () => {
+    const map = generatePlayableMap(viewport, { nodes: [], edges: [] }, {
+      vacantHouses: [
+        { id: 'mock-1', lat: 25.04, lng: 121.5, status: 'vacant' },
       ],
-      edges: [
-        { id: 'a-b', from: 'a', to: 'b', kind: 'road', length: 50 },
-        { id: 'b-c', from: 'b', to: 'c', kind: 'road', length: 50 },
-        { id: 'c-d', from: 'c', to: 'd', kind: 'road', length: 50 },
-        { id: 'd-e', from: 'd', to: 'e', kind: 'road', length: 50 },
-        { id: 'e-f', from: 'e', to: 'f', kind: 'road', length: 50 },
-        { id: 'f-g', from: 'f', to: 'g', kind: 'road', length: 50 },
-        { id: 'g-h', from: 'g', to: 'h', kind: 'road', length: 50 },
-        { id: 'b-i', from: 'b', to: 'i', kind: 'road', length: 50 },
-        { id: 'i-j', from: 'i', to: 'j', kind: 'road', length: 50 },
-        { id: 'd-j', from: 'd', to: 'j', kind: 'road', length: 50 },
-        { id: 'j-k', from: 'j', to: 'k', kind: 'road', length: 50 },
-        { id: 'f-k', from: 'f', to: 'k', kind: 'road', length: 50 },
-        { id: 'k-l', from: 'k', to: 'l', kind: 'road', length: 50 },
-        { id: 'g-l', from: 'g', to: 'l', kind: 'road', length: 50 },
-      ],
-    }
+    })
 
-    const map = generatePlayableMap(viewport, roadData, { pelletDensity: 3 })
-    const pelletCountsByEdge = new Map<string, number>()
-    for (const pellet of map.pellets) {
-      pelletCountsByEdge.set(pellet.edgeId, (pelletCountsByEdge.get(pellet.edgeId) ?? 0) + 1)
-    }
-
-    const coveredEdges = ['a-b', 'b-c', 'c-d', 'd-e', 'e-f', 'f-g', 'g-h']
-      .filter((edgeId) => (pelletCountsByEdge.get(edgeId) ?? 0) >= 2)
-
-    expect(coveredEdges.length).toBeGreaterThanOrEqual(3)
-    expect(map.pellets.length).toBeGreaterThan(8)
+    expect(map.vacantHouses).toEqual([
+      { id: 'mock-1', lat: 25.04, lng: 121.5, status: 'vacant' },
+    ])
   })
 })

@@ -2,7 +2,7 @@ export type SourceMode = 'road' | 'hybrid' | 'generated'
 export type Direction = 'up' | 'down' | 'left' | 'right'
 export type GameStatus = 'idle' | 'preview' | 'playing' | 'paused' | 'dying' | 'gameover' | 'win'
 export type GhostMode = 'chase' | 'frightened' | 'eyes'
-export type GameEventType = 'start' | 'pellet' | 'power' | 'fruit' | 'extra-life' | 'eat-ghost' | 'lose-life' | 'gameover' | 'win'
+export type GameEventType = 'start' | 'pellet' | 'power' | 'fruit' | 'extra-life' | 'eat-ghost' | 'lose-life' | 'gameover' | 'win' | 'report'
 
 export interface Bounds {
   north: number
@@ -113,6 +113,11 @@ export interface GhostState {
   recentNodeIds: string[]
 }
 
+export interface ReportProgress {
+  houseId: string | null
+  progress: number
+}
+
 export interface GameState {
   status: GameStatus
   score: number
@@ -121,6 +126,10 @@ export interface GameState {
   pacman: EntityState
   ghosts: GhostState[]
   remainingPellets: number
+  remainingVacant: number
+  reportedVacant: number
+  vacantHouses: VacantProperty[]
+  reportProgress: ReportProgress
   frightenedUntil: number
   floatingScores: FloatingScore[]
   visualEffects: VisualEffect[]

@@ -1,24 +1,14 @@
-import type { GeoPoint, Pellet, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, VacantProperty, Viewport } from '../types'
+import type { GeoPoint, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, VacantProperty, Viewport } from '../types'
 import { simplifyRoadGraph } from './simplifyRoadGraph'
 
 interface GenerateOptions {
-  pelletDensity?: number
   vacantHouses?: VacantProperty[]
 }
 
 const MIN_NODE_COUNT = 12
 const MIN_EDGE_COUNT = 14
 const CONNECTOR_LIMIT = 10
-const PELLET_STEP_METERS = 6
 const MIN_SPAWN_DISTANCE_METERS = 120
-const MIN_POWER_DISTANCE_FROM_SPAWN_METERS = 90
-const MIN_POWER_PELLET_SPACING_METERS = 80
-const TARGET_POWER_PELLETS = 6
-const BLOCKED_EDGE_PROGRESS = 0.35
-const INTERSECTION_CLEARANCE_METERS = 18
-const TURN_CLEARANCE_METERS = 5
-const TERMINAL_CLEARANCE_METERS = 2
-const QUADRANTS: Array<'nw' | 'ne' | 'sw' | 'se'> = ['nw', 'ne', 'sw', 'se']
 
 function distanceMeters(a: GeoPoint, b: GeoPoint): number {
   const latScale = 111_320
@@ -26,13 +16,6 @@ function distanceMeters(a: GeoPoint, b: GeoPoint): number {
   const dx = (a.lng - b.lng) * lngScale
   const dy = (a.lat - b.lat) * latScale
   return Math.hypot(dx, dy)
-}
-
-function interpolate(a: GeoPoint, b: GeoPoint, t: number): GeoPoint {
-  return {
-    lng: a.lng + (b.lng - a.lng) * t,
-    lat: a.lat + (b.lat - a.lat) * t,
-  }
 }
 
 function buildComponent(nodeMap: Map<string, RoadGraphNode>, startId: string): Set<string> {
@@ -80,19 +63,6 @@ function largestComponent(roadData: RoadData): RoadData {
     node.neighbors = node.neighbors.filter((neighbor) => allowed.has(neighbor))
   }
   return { nodes, edges }
-}
-
-function chooseQuadrant(point: GeoPoint, center: GeoPoint): 'nw' | 'ne' | 'sw' | 'se' {
-  if (point.lat >= center.lat && point.lng <= center.lng) {
-    return 'nw'
-  }
-  if (point.lat >= center.lat && point.lng > center.lng) {
-    return 'ne'
-  }
-  if (point.lat < center.lat && point.lng <= center.lng) {
-    return 'sw'
-  }
-  return 'se'
 }
 
 function cloneRoadData(roadData: RoadData): RoadData {
@@ -273,149 +243,6 @@ function chooseSpawnNode(nodes: RoadGraphNode[], center: GeoPoint, ghostHomeIds:
   return candidates[0]?.node ?? nearestNode(nodes, center)
 }
 
-function normalizeVector(from: GeoPoint, to: GeoPoint): { x: number; y: number } {
-  const dx = to.lng - from.lng
-  const dy = to.lat - from.lat
-  const length = Math.hypot(dx, dy) || 1
-  return { x: dx / length, y: dy / length }
-}
-
-function pelletClearanceForEdgeEnd(
-  node: RoadGraphNode,
-  oppositeNode: RoadGraphNode,
-  nodeMap: Map<string, RoadGraphNode>,
-): number {
-  const degree = node.neighbors.length
-  if (degree >= 3) {
-    return INTERSECTION_CLEARANCE_METERS
-  }
-  if (degree <= 1) {
-    return TERMINAL_CLEARANCE_METERS
-  }
-
-  const otherNeighborId = node.neighbors.find((neighborId) => neighborId !== oppositeNode.id)
-  if (!otherNeighborId) {
-    return TERMINAL_CLEARANCE_METERS
-  }
-  const otherNeighbor = nodeMap.get(otherNeighborId)
-  if (!otherNeighbor) {
-    return TURN_CLEARANCE_METERS
-  }
-
-  const toOpposite = normalizeVector(node, oppositeNode)
-  const toOther = normalizeVector(node, otherNeighbor)
-  const dot = toOpposite.x * toOther.x + toOpposite.y * toOther.y
-
-  if (dot <= -0.92) {
-    return 0
-  }
-  return TURN_CLEARANCE_METERS
-}
-
-function buildPellets(
-  nodes: RoadGraphNode[],
-  edges: RoadGraphEdge[],
-  spawnId: string,
-  homeIds: string[],
-  center: GeoPoint,
-  pelletDensity = 1,
-): { pellets: Pellet[]; powerPellets: Pellet[] } {
-  const nodeMap = new Map(nodes.map((node) => [node.id, node]))
-  const blockedNodes = new Set([spawnId, ...homeIds])
-  const spawnNode = nodeMap.get(spawnId)
-  const pellets: Pellet[] = []
-  const pelletStep = PELLET_STEP_METERS / Math.max(0.5, pelletDensity)
-
-  for (const edge of edges) {
-    const from = nodeMap.get(edge.from)
-    const to = nodeMap.get(edge.to)
-    if (!from || !to) {
-      continue
-    }
-    const fromClearance = pelletClearanceForEdgeEnd(from, to, nodeMap)
-    const toClearance = pelletClearanceForEdgeEnd(to, from, nodeMap)
-    if (edge.length <= fromClearance + toClearance) {
-      continue
-    }
-
-    const minProgress = Math.max(
-      blockedNodes.has(from.id) ? BLOCKED_EDGE_PROGRESS : 0,
-      fromClearance / edge.length,
-    )
-    const maxProgress = Math.min(
-      blockedNodes.has(to.id) ? 1 - BLOCKED_EDGE_PROGRESS : 1,
-      1 - toClearance / edge.length,
-    )
-    if (maxProgress <= minProgress) {
-      continue
-    }
-
-    const playableLength = edge.length * (maxProgress - minProgress)
-    const sampleCount = Math.max(1, Math.floor(playableLength / pelletStep))
-    for (let step = 1; step <= sampleCount; step += 1) {
-      const progress = minProgress + ((maxProgress - minProgress) * step) / (sampleCount + 1)
-      const point = interpolate(from, to, progress)
-      pellets.push({
-        id: `${edge.id}:${step}`,
-        edgeId: edge.id,
-        progress,
-        lng: point.lng,
-        lat: point.lat,
-        power: false,
-      })
-    }
-  }
-
-  const powerPellets: Pellet[] = []
-  const usedPellets = new Set<string>()
-  for (const quadrant of QUADRANTS) {
-    const candidate = [...pellets]
-      .filter((pellet) =>
-        !usedPellets.has(pellet.id)
-        && chooseQuadrant(pellet, center) === quadrant
-        && (!spawnNode || distanceMeters(pellet, spawnNode) >= MIN_POWER_DISTANCE_FROM_SPAWN_METERS))
-      .sort((a, b) => distanceMeters(b, center) - distanceMeters(a, center))[0]
-
-    if (candidate) {
-      usedPellets.add(candidate.id)
-      powerPellets.push({
-        ...candidate,
-        id: `power:${candidate.id}`,
-        power: true,
-      })
-    }
-  }
-
-  const extraCandidates = [...pellets]
-    .filter((pellet) =>
-      !usedPellets.has(pellet.id)
-      && (!spawnNode || distanceMeters(pellet, spawnNode) >= MIN_POWER_DISTANCE_FROM_SPAWN_METERS))
-    .sort((a, b) => distanceMeters(b, center) - distanceMeters(a, center))
-
-  for (const candidate of extraCandidates) {
-    if (powerPellets.length >= TARGET_POWER_PELLETS) {
-      break
-    }
-    const farEnough = powerPellets.every((existing) => distanceMeters(existing, candidate) >= MIN_POWER_PELLET_SPACING_METERS)
-    if (!farEnough) {
-      continue
-    }
-    usedPellets.add(candidate.id)
-    powerPellets.push({
-      ...candidate,
-      id: `power:${candidate.id}`,
-      power: true,
-    })
-  }
-
-  const remainingPellets = pellets.filter((pellet) => !usedPellets.has(pellet.id))
-
-  return {
-    pellets: remainingPellets,
-    powerPellets,
-  }
-}
-
 function prepareRoadNetwork(viewport: Viewport, roadData: RoadData): { roadData: RoadData; sourceMode: SourceMode } {
   const simplified = simplifyRoadGraph(roadData)
   const component = largestComponent(simplified)
@@ -442,23 +269,15 @@ export function generatePlayableMap(viewport: Viewport, roadData: RoadData, opti
   const center = viewport.center
   const ghostHomeNodeIds = chooseGhostHomes(nodes, center)
   const spawnNode = chooseSpawnNode(nodes, center, ghostHomeNodeIds)
-  const { pellets, powerPellets } = buildPellets(
-    nodes,
-    prepared.roadData.edges,
-    spawnNode.id,
-    ghostHomeNodeIds,
-    center,
-    options.pelletDensity ?? 1,
-  )
-
   return {
     bounds: viewport.bounds,
     center,
     nodes,
     edges: prepared.roadData.edges,
-    pellets,
-    powerPellets,
-    vacantHouses: (options.vacantHouses ?? []).map((house) => ({ ...house, status: 'vacant' })),
+    // Street pellets retired — vacant houses are the collectible objective.
+    pellets: [],
+    powerPellets: [],
+    vacantHouses: (options.vacantHouses ?? []).map((house) => ({ ...house, status: 'vacant' as const })),
     spawnNodeId: spawnNode.id,
     ghostHomeNodeIds,
     sourceMode: prepared.sourceMode,

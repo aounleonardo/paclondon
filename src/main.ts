@@ -485,9 +485,7 @@ async function generateMaze(): Promise<void> {
   try {
     const viewport = mapController.getViewport()
     const roadData = await fetchRoadData(viewport.bounds)
-    playableMap = generatePlayableMap(viewport, roadData, {
-      pelletDensity: Number(pelletInput.value),
-    })
+    playableMap = generatePlayableMap(viewport, roadData)
     mapController.fitToPoints(playableMap.nodes)
     engine = new GameEngine(playableMap)
     applySpeed()
