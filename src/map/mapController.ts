@@ -28,11 +28,16 @@ export class MapController {
       container,
       style: TILE_STYLE,
       center: [-0.1278, 51.5074],
-      zoom: 17,
+      zoom: 16.8,
+      attributionControl: false,
     })
 
     this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), 'top-right')
-    this.map.addControl(new maplibregl.AttributionControl({ compact: true }))
+    this.map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
+  }
+
+  public resize(): void {
+    this.map.resize()
   }
 
   public async ready(): Promise<void> {
@@ -65,7 +70,7 @@ export class MapController {
   public flyTo(lng: number, lat: number): void {
     this.map.flyTo({
       center: [lng, lat],
-      zoom: 15,
+      zoom: 16.8,
       speed: 0.8,
     })
   }
@@ -75,61 +80,38 @@ export class MapController {
       return
     }
 
-    const canvas = this.map.getCanvas()
-    const width = canvas.clientWidth
-    const height = canvas.clientHeight
-    if (width <= 0 || height <= 0) {
-      return
-    }
-
-    const margin = 34
-    let minX = Number.POSITIVE_INFINITY
-    let maxX = Number.NEGATIVE_INFINITY
-    let minY = Number.POSITIVE_INFINITY
-    let maxY = Number.NEGATIVE_INFINITY
+    let west = Number.POSITIVE_INFINITY
+    let east = Number.NEGATIVE_INFINITY
+    let south = Number.POSITIVE_INFINITY
+    let north = Number.NEGATIVE_INFINITY
 
     for (const point of points) {
-      const projected = this.map.project([point.lng, point.lat])
-      minX = Math.min(minX, projected.x)
-      maxX = Math.max(maxX, projected.x)
-      minY = Math.min(minY, projected.y)
-      maxY = Math.max(maxY, projected.y)
+      west = Math.min(west, point.lng)
+      east = Math.max(east, point.lng)
+      south = Math.min(south, point.lat)
+      north = Math.max(north, point.lat)
     }
 
-    const fitsCurrentView = minX >= margin
-      && maxX <= width - margin
-      && minY >= margin
-      && maxY <= height - margin
+    // Pad tiny bounding boxes so MapLibre still has room to frame a readable maze.
+    const lngPad = Math.max((east - west) * 0.08, 0.00018)
+    const latPad = Math.max((north - south) * 0.08, 0.00012)
 
-    if (fitsCurrentView) {
-      return
-    }
+    this.map.fitBounds(
+      [
+        [west - lngPad, south - latPad],
+        [east + lngPad, north + latPad],
+      ],
+      {
+        padding: { top: 28, bottom: 48, left: 24, right: 24 },
+        maxZoom: 17.6,
+        duration: 380,
+        essential: true,
+      },
+    )
+  }
 
-    const availableWidth = Math.max(1, width - margin * 2)
-    const availableHeight = Math.max(1, height - margin * 2)
-    const bboxWidth = Math.max(1, maxX - minX)
-    const bboxHeight = Math.max(1, maxY - minY)
-    const scale = Math.max(bboxWidth / availableWidth, bboxHeight / availableHeight)
-    const bboxCenter = {
-      x: (minX + maxX) / 2,
-      y: (minY + maxY) / 2,
-    }
-    const targetCenter = this.map.unproject([bboxCenter.x, bboxCenter.y])
-
-    if (scale <= 1) {
-      this.map.easeTo({
-        center: [targetCenter.lng, targetCenter.lat],
-        duration: 180,
-      })
-      return
-    }
-
-    const zoomDelta = Math.log2(scale) + 0.06
-    this.map.easeTo({
-      center: [targetCenter.lng, targetCenter.lat],
-      zoom: this.map.getZoom() - zoomDelta,
-      duration: 200,
-    })
+  public getZoom(): number {
+    return this.map.getZoom()
   }
 
   public project(point: GeoPoint): ScreenPoint {

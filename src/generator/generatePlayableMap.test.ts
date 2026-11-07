@@ -98,7 +98,7 @@ describe('generatePlayableMap', () => {
     expect(portalEdges.length).toBe(0)
   })
 
-  it('snaps houses onto playable road edges', () => {
+  it('keeps official street junctions without inventing synthetic shortcuts', () => {
     const roadData: RoadData = {
       nodes: [
         { id: '1', lng: 121.49, lat: 25.05, neighbors: ['2', '4'] },
@@ -134,9 +134,56 @@ describe('generatePlayableMap', () => {
     }
 
     const map = generatePlayableMap(viewport, roadData)
+    const branchPoints = map.nodes.filter((node) => node.neighbors.length >= 3)
+
+    expect(map.sourceMode).toBe('road')
+    expect(map.edges.every((edge) => !edge.synthetic)).toBe(true)
+    expect(branchPoints.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('places houses on street nodes with multiple road choices', () => {
+    const roadData: RoadData = {
+      nodes: [
+        { id: '1', lng: 121.49, lat: 25.05, neighbors: ['2', '4'] },
+        { id: '2', lng: 121.50, lat: 25.05, neighbors: ['1', '3', '5'] },
+        { id: '3', lng: 121.51, lat: 25.05, neighbors: ['2', '6'] },
+        { id: '4', lng: 121.49, lat: 25.04, neighbors: ['1', '5', '7'] },
+        { id: '5', lng: 121.50, lat: 25.04, neighbors: ['2', '4', '6', '8'] },
+        { id: '6', lng: 121.51, lat: 25.04, neighbors: ['3', '5', '9'] },
+        { id: '7', lng: 121.49, lat: 25.03, neighbors: ['4', '8'] },
+        { id: '8', lng: 121.50, lat: 25.03, neighbors: ['5', '7', '9'] },
+        { id: '9', lng: 121.51, lat: 25.03, neighbors: ['6', '8', '10'] },
+        { id: '10', lng: 121.52, lat: 25.03, neighbors: ['9', '11'] },
+        { id: '11', lng: 121.52, lat: 25.04, neighbors: ['10', '12'] },
+        { id: '12', lng: 121.52, lat: 25.05, neighbors: ['11'] },
+      ],
+      edges: [
+        { id: 'e1', from: '1', to: '2', kind: 'residential', length: 100 },
+        { id: 'e2', from: '2', to: '3', kind: 'residential', length: 100 },
+        { id: 'e3', from: '1', to: '4', kind: 'residential', length: 100 },
+        { id: 'e4', from: '2', to: '5', kind: 'residential', length: 100 },
+        { id: 'e5', from: '3', to: '6', kind: 'residential', length: 100 },
+        { id: 'e6', from: '4', to: '5', kind: 'residential', length: 100 },
+        { id: 'e7', from: '5', to: '6', kind: 'residential', length: 100 },
+        { id: 'e8', from: '4', to: '7', kind: 'residential', length: 100 },
+        { id: 'e9', from: '5', to: '8', kind: 'residential', length: 100 },
+        { id: 'e10', from: '6', to: '9', kind: 'residential', length: 100 },
+        { id: 'e11', from: '7', to: '8', kind: 'residential', length: 100 },
+        { id: 'e12', from: '8', to: '9', kind: 'residential', length: 100 },
+        { id: 'e13', from: '9', to: '10', kind: 'residential', length: 100 },
+        { id: 'e14', from: '10', to: '11', kind: 'residential', length: 100 },
+        { id: 'e15', from: '11', to: '12', kind: 'residential', length: 100 },
+      ],
+    }
+
+    const map = generatePlayableMap(viewport, roadData)
+    const nodeById = new Map(map.nodes.map((node) => [node.id, node]))
     expect(map.houses.length).toBeGreaterThanOrEqual(4)
+    expect(map.houses.every((house) => Boolean(house.nodeId))).toBe(true)
+    expect(map.houses.every((house) => {
+      const node = house.nodeId ? nodeById.get(house.nodeId) : null
+      return Boolean(node && node.neighbors.length >= 2)
+    })).toBe(true)
     expect(map.houses.some((house) => house.isVacant)).toBe(true)
-    expect(map.houses.some((house) => !house.isVacant)).toBe(true)
-    expect(map.houses.every((house) => Boolean(house.edgeId))).toBe(true)
   })
 })

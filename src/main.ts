@@ -7,11 +7,32 @@ import { generatePlayableMap } from './generator/generatePlayableMap'
 import { loadLocale, localeOptions, modeLabel, saveLocale, statusLabel, translate, type Locale } from './i18n'
 import { MapController } from './map/mapController'
 import { CanvasRenderer } from './render/canvasRenderer'
-import type { AddressPreset, Direction, PlayableMap } from './types'
+import type { AddressPreset, Direction, PlayableMap, Viewport } from './types'
 
-const RECOMMENDED_ZOOM_MIN = 17
+function expandViewportForMaze(viewport: Viewport): Viewport {
+  const latSpan = Math.max(viewport.bounds.north - viewport.bounds.south, 0.001)
+  const lngSpan = Math.max(viewport.bounds.east - viewport.bounds.west, 0.001)
+  const halfLat = Math.max(latSpan * MAZE_AREA_SCALE, MIN_MAZE_LAT_SPAN) / 2
+  const halfLng = Math.max(lngSpan * MAZE_AREA_SCALE, MIN_MAZE_LNG_SPAN) / 2
+  return {
+    center: viewport.center,
+    zoom: viewport.zoom,
+    bounds: {
+      north: viewport.center.lat + halfLat,
+      south: viewport.center.lat - halfLat,
+      east: viewport.center.lng + halfLng,
+      west: viewport.center.lng - halfLng,
+    },
+  }
+}
+
+const RECOMMENDED_ZOOM_MIN = 16.5
 const RECOMMENDED_ZOOM_MAX = 18
-const RECOMMENDED_ZOOM_RANGE = '17-18'
+const RECOMMENDED_ZOOM_RANGE = '16.5-18'
+/** Grow the playable street area so the maze has many connected roads to escape on. */
+const MAZE_AREA_SCALE = 2.6
+const MIN_MAZE_LAT_SPAN = 0.0075
+const MIN_MAZE_LNG_SPAN = 0.011
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector)
@@ -33,10 +54,17 @@ app.innerHTML = `
       <div class="corner-control">
         <select id="locale-select"></select>
       </div>
-      <div>
+      <div class="panel-header">
         <p class="eyebrow" id="eyebrow"></p>
         <h1 id="title"></h1>
         <p class="intro" id="intro"></p>
+      </div>
+
+      <div class="button-row action-row">
+        <button id="generate-button" type="button" class="primary"></button>
+        <button id="play-button" type="button"></button>
+        <button id="pause-button" type="button"></button>
+        <button id="restart-button" type="button"></button>
       </div>
 
       <div class="controls">
@@ -54,16 +82,10 @@ app.innerHTML = `
           </div>
         </label>
         <div id="search-results" class="search-results"></div>
-        <div class="button-row">
-          <button id="generate-button" type="button" class="primary"></button>
-          <button id="play-button" type="button"></button>
-          <button id="pause-button" type="button"></button>
-          <button id="restart-button" type="button"></button>
-        </div>
         <label class="inline-control">
           <span id="speed-label"></span>
-          <input id="speed-input" type="range" min="0.8" max="2.4" step="0.1" value="1.0" />
-          <strong id="speed-value">1.0x</strong>
+          <input id="speed-input" type="range" min="0.5" max="2.0" step="0.1" value="0.8" />
+          <strong id="speed-value">0.8x</strong>
         </label>
         <label class="inline-control">
           <span id="pellet-label"></span>
@@ -500,20 +522,29 @@ async function generateMaze(): Promise<void> {
   stopLoop()
   audio.setAmbience(false)
   try {
-    const viewport = mapController.getViewport()
+    const viewport = expandViewportForMaze(mapController.getViewport())
     const roadData = await fetchRoadData(viewport.bounds)
     playableMap = generatePlayableMap(viewport, roadData, {
       pelletDensity: Number(pelletInput.value),
     })
+    mapController.resize()
     mapController.fitToPoints(playableMap.nodes)
     engine = new GameEngine(playableMap)
     applySpeed()
     drawCurrentFrame()
     syncHud()
-    if (viewport.zoom < RECOMMENDED_ZOOM_MIN) {
+    window.setTimeout(() => {
+      mapController.resize()
+      if (playableMap) {
+        mapController.fitToPoints(playableMap.nodes)
+      }
+      drawCurrentFrame()
+    }, 360)
+    const fittedZoom = mapController.getZoom()
+    if (fittedZoom < RECOMMENDED_ZOOM_MIN) {
       setMessageKey('message.generatedWide', {
         mode: modeLabel(currentLocale, playableMap.sourceMode).toLowerCase(),
-        zoom: viewport.zoom.toFixed(1),
+        zoom: fittedZoom.toFixed(1),
       })
     } else {
       setMessageKey('message.generated', { mode: modeLabel(currentLocale, playableMap.sourceMode).toLowerCase() })
@@ -627,9 +658,12 @@ window.addEventListener('keydown', (event) => {
   void handleDirection(direction)
 })
 
-window.addEventListener('resize', () => {
+function syncMapLayout(): void {
+  mapController.resize()
   drawCurrentFrame()
-})
+}
+
+window.addEventListener('resize', syncMapLayout)
 
 await mapController.ready()
 addressPresets = await loadAddressPresets()
@@ -645,3 +679,6 @@ mapController.onViewChange(() => {
 })
 setViewportGuidanceMessage()
 syncHud()
+requestAnimationFrame(() => {
+  syncMapLayout()
+})

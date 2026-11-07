@@ -8,10 +8,10 @@ const HOUSE_COLORS: Record<string, string> = {
   claimed: '#90be6d',
 }
 
-const PACMAN_GLOW_RADIUS = 30
-const PACMAN_BODY_RADIUS = 20
-const GHOST_HEAD_RADIUS = 16
-const GHOST_BODY_HEIGHT = 18
+const PACMAN_GLOW_RADIUS = 22
+const PACMAN_BODY_RADIUS = 14
+const GHOST_HEAD_RADIUS = 11
+const GHOST_BODY_HEIGHT = 13
 const FRIGHTENED_GHOST_COLOR = '#6a4c93'
 const FRIGHTENED_GHOST_WARNING_COLOR = '#f8f9fa'
 const FRIGHTENED_WARNING_MS = 2_000
@@ -209,7 +209,7 @@ export class CanvasRenderer {
     for (const house of houses) {
       const screen = project(house)
       const color = this.houseFillColor(house)
-      const radius = house.state === 'unknown' ? 10 * pulse : 11
+      const radius = house.state === 'unknown' ? 8 * pulse : 8.5
 
       this.context.save()
       this.context.fillStyle = 'rgba(0, 0, 0, 0.28)'
@@ -264,15 +264,17 @@ export class CanvasRenderer {
     width: number,
     height: number,
   ): void {
-    context.fillStyle = 'rgba(6, 15, 39, 0.12)'
+    context.fillStyle = 'rgba(6, 15, 39, 0.06)'
     context.fillRect(0, 0, width, height)
 
     context.lineCap = 'round'
     context.lineJoin = 'round'
     const nodeMap = new Map(map.nodes.map((node) => [node.id, node]))
 
+    // Scale stroke width from typical on-screen segment length so turns stay visible.
+    const sampleLengths: number[] = []
     for (const edge of map.edges) {
-      if (edge.kind === 'portal') {
+      if (edge.synthetic || edge.kind === 'portal') {
         continue
       }
       const from = nodeMap.get(edge.from)
@@ -282,20 +284,58 @@ export class CanvasRenderer {
       }
       const start = project(from)
       const end = project(to)
+      sampleLengths.push(Math.hypot(end.x - start.x, end.y - start.y))
+    }
+    sampleLengths.sort((a, b) => a - b)
+    const typicalLength = sampleLengths[Math.floor(sampleLengths.length / 2)] ?? 24
+    const scale = Math.max(0.55, Math.min(1.35, typicalLength / 28))
+    const outerWidth = 5.5 * scale
+    const innerWidth = 2.8 * scale
+    const syntheticWidth = 2.2 * scale
 
-      context.strokeStyle = edge.synthetic ? 'rgba(72, 202, 228, 0.55)' : 'rgba(7, 12, 20, 0.35)'
-      context.lineWidth = edge.synthetic ? 13 : 16
+    const realEdges = map.edges.filter((edge) => !edge.synthetic && edge.kind !== 'portal')
+    const syntheticEdges = map.edges.filter((edge) => edge.synthetic)
+
+    for (const edge of realEdges) {
+      const from = nodeMap.get(edge.from)
+      const to = nodeMap.get(edge.to)
+      if (!from || !to) {
+        continue
+      }
+      const start = project(from)
+      const end = project(to)
+
+      context.strokeStyle = 'rgba(7, 12, 20, 0.2)'
+      context.lineWidth = outerWidth
       context.beginPath()
       context.moveTo(start.x, start.y)
       context.lineTo(end.x, end.y)
       context.stroke()
 
-      context.strokeStyle = edge.synthetic ? 'rgba(144, 224, 239, 0.95)' : 'rgba(67, 97, 238, 0.98)'
-      context.lineWidth = edge.synthetic ? 7 : 9
+      context.strokeStyle = 'rgba(67, 97, 238, 0.9)'
+      context.lineWidth = innerWidth
       context.beginPath()
       context.moveTo(start.x, start.y)
       context.lineTo(end.x, end.y)
       context.stroke()
+    }
+
+    for (const edge of syntheticEdges) {
+      const from = nodeMap.get(edge.from)
+      const to = nodeMap.get(edge.to)
+      if (!from || !to) {
+        continue
+      }
+      const start = project(from)
+      const end = project(to)
+      context.strokeStyle = 'rgba(144, 224, 239, 0.7)'
+      context.lineWidth = syntheticWidth
+      context.setLineDash([5, 5])
+      context.beginPath()
+      context.moveTo(start.x, start.y)
+      context.lineTo(end.x, end.y)
+      context.stroke()
+      context.setLineDash([])
     }
   }
 

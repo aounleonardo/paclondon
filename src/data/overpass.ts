@@ -3,6 +3,7 @@ import type { AddressPreset, Bounds, RoadData, RoadGraphEdge, RoadGraphNode, Sea
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search'
 const ADDRESS_PRESETS_URL = `${import.meta.env.BASE_URL}addresses.txt`
+/** Official streets only — skip footpaths/alleys that create single-file corridors. */
 const PLAYABLE_HIGHWAYS = new Set([
   'residential',
   'living_street',
@@ -12,13 +13,12 @@ const PLAYABLE_HIGHWAYS = new Set([
   'secondary_link',
   'primary',
   'primary_link',
+  'trunk',
+  'trunk_link',
   'service',
   'unclassified',
   'road',
   'pedestrian',
-  'footway',
-  'cycleway',
-  'track',
 ])
 
 interface OverpassNodeElement {
@@ -130,11 +130,22 @@ export async function loadAddressPresets(): Promise<AddressPreset[]> {
   }
 }
 
+function expandBounds(bounds: Bounds, padDegrees: number): Bounds {
+  return {
+    north: bounds.north + padDegrees,
+    south: bounds.south - padDegrees,
+    east: bounds.east + padDegrees,
+    west: bounds.west - padDegrees,
+  }
+}
+
 export async function fetchRoadData(bounds: Bounds): Promise<RoadData> {
+  // Fetch a padded area so real street junctions just outside the view still connect the maze.
+  const queryBounds = expandBounds(bounds, 0.002)
   const query = `
-    [out:json][timeout:20];
+    [out:json][timeout:25];
     (
-      way["highway"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+      way["highway"](${queryBounds.south},${queryBounds.west},${queryBounds.north},${queryBounds.east});
     );
     (._;>;);
     out body;
@@ -156,6 +167,7 @@ export async function fetchRoadData(bounds: Bounds): Promise<RoadData> {
   const nodeLookup = new Map<number, OverpassNodeElement>()
   const graphNodes = new Map<string, RoadGraphNode>()
   const graphEdges: RoadGraphEdge[] = []
+  const edgeKeys = new Set<string>()
 
   for (const element of payload.elements) {
     if (element.type === 'node') {
@@ -182,12 +194,28 @@ export async function fetchRoadData(bounds: Bounds): Promise<RoadData> {
       if (!fromNode || !toNode) {
         continue
       }
-      if (!isWithinBounds(bounds, fromNode.lat, fromNode.lon) || !isWithinBounds(bounds, toNode.lat, toNode.lon)) {
+
+      const fromInside = isWithinBounds(queryBounds, fromNode.lat, fromNode.lon)
+      const toInside = isWithinBounds(queryBounds, toNode.lat, toNode.lon)
+      if (!fromInside || !toInside) {
+        continue
+      }
+
+      // Keep a segment if it touches the visible play area (or sits in the padded ring that stitches junctions).
+      const touchesPlayArea = isWithinBounds(bounds, fromNode.lat, fromNode.lon)
+        || isWithinBounds(bounds, toNode.lat, toNode.lon)
+      if (!touchesPlayArea) {
         continue
       }
 
       const fromKey = String(fromId)
       const toKey = String(toId)
+      const undirectedKey = fromKey < toKey ? `${fromKey}|${toKey}` : `${toKey}|${fromKey}`
+      if (edgeKeys.has(undirectedKey)) {
+        continue
+      }
+      edgeKeys.add(undirectedKey)
+
       graphNodes.set(fromKey, graphNodes.get(fromKey) ?? {
         id: fromKey,
         lng: fromNode.lon,

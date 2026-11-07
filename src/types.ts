@@ -61,6 +61,7 @@ export interface House extends GeoPoint {
   checked: boolean
   claimed: boolean
   state: HouseState
+  nodeId?: string
   edgeId?: string
   progress: number
   address?: string

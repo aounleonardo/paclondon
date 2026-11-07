@@ -1,14 +1,14 @@
 import type { BonusFruit, BonusFruitType, Direction, EntityState, EntityTravel, FloatingScore, GameEvent, GameState, GeoPoint, GhostMode, GhostState, House, PlayableMap, RoadGraphEdge, RoadGraphNode, VisualEffect } from '../types'
 
-const PACMAN_SPEED = 42
-const GHOST_SPEED = 35
-const FRIGHTENED_SPEED = 26
-const EYES_SPEED = 84
+const PACMAN_SPEED = 30
+const GHOST_SPEED = 24
+const FRIGHTENED_SPEED = 18
+const EYES_SPEED = 60
 const POWER_DURATION_MS = 8_000
 const COLLISION_DISTANCE_METERS = 10
 const PELLET_COLLISION_DISTANCE_METERS = 7
-const SPAWN_PROTECTION_MS = 2_000
-const GHOST_RELEASE_DELAY_MS = 1_200
+const SPAWN_PROTECTION_MS = 3_500
+const GHOST_RELEASE_DELAY_MS = 2_800
 const FLOATING_SCORE_DURATION_MS = 1_200
 const EAT_GHOST_ANIMATION_MS = 450
 const EAT_GHOST_PAUSE_MS = 120
@@ -21,7 +21,7 @@ const GHOST_MEMORY_SIZE = 6
 const GHOST_COLORS = ['#ff595e', '#00bbf9', '#ffca3a', '#90be6d']
 const CHECK_DURATION_MS = 3_000
 const CLAIM_DURATION_MS = 10_000
-const HOUSE_RADIUS_METERS = 18
+const HOUSE_RADIUS_METERS = 22
 const OCCUPIED_SLOW_DURATION_MS = 6_000
 const OCCUPIED_SPEED_MULTIPLIER = 0.55
 const CHECK_SCORE = 25
@@ -343,7 +343,7 @@ export class GameEngine {
   }
 
   public setSpeedMultiplier(multiplier: number): void {
-    this.speedMultiplier = Math.min(3, Math.max(0.6, multiplier))
+    this.speedMultiplier = Math.min(3, Math.max(0.45, multiplier))
   }
 
   public getSpeedMultiplier(): number {
