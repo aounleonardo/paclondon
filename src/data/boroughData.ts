@@ -7,12 +7,14 @@ const DEFAULT_BOROUGH_ID = import.meta.env.VITE_DEFAULT_BOROUGH_ID || 'islington
 
 function mazeUrls(boroughId: string): string[] {
   const configured = import.meta.env.VITE_MAZE_URL
-  return [
-    configured,
-    `/api/borough/${boroughId}/maze`,
-    `${import.meta.env.BASE_URL}mazes/${boroughId}.json`,
-    `${import.meta.env.BASE_URL}mazes/newspeak-house.json`,
-  ].filter((value): value is string => Boolean(value))
+  const bundled = `${import.meta.env.BASE_URL}mazes/${boroughId}.json`
+  const api = `/api/borough/${boroughId}/maze`
+  const fallback = `${import.meta.env.BASE_URL}mazes/newspeak-house.json`
+  // In dev, prefer bundled maze if /api is not wired (avoids SPA index.html masquerading as JSON).
+  if (import.meta.env.DEV) {
+    return [configured, bundled, api, fallback].filter((value): value is string => Boolean(value))
+  }
+  return [configured, api, bundled, fallback].filter((value): value is string => Boolean(value))
 }
 
 function vacantUrls(boroughId: string): string[] {
@@ -29,6 +31,10 @@ async function fetchJson(url: string): Promise<unknown | null> {
   try {
     const response = await fetch(url, { cache: 'no-cache' })
     if (!response.ok) {
+      return null
+    }
+    const contentType = response.headers.get('content-type') ?? ''
+    if (!contentType.includes('json') && !contentType.includes('text/plain')) {
       return null
     }
     return await response.json() as unknown
