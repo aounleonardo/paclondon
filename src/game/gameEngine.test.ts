@@ -231,8 +231,28 @@ describe('GameEngine portals', () => {
     expect(engine.state.remainingVacant).toBe(0)
     expect(engine.state.reportedVacant).toBe(1)
     expect(engine.state.status).toBe('win')
-    expect(engine.state.floatingScores.some((item) => item.text === 'Reported!')).toBe(true)
+    expect(engine.state.floatingScores.some((item) => item.text === 'Reported! All clear!')).toBe(true)
     expect(engine.drainEvents().some((event) => event.type === 'report')).toBe(true)
+  })
+
+  it('shows how many vacant houses remain after a report', () => {
+    const clearMap: PlayableMap = {
+      ...roadMap,
+      vacantHouses: [
+        { id: 'house-a', lat: 0.5, lng: 0.5, status: 'vacant' },
+        { id: 'house-b', lat: 0.51, lng: 0.5, status: 'vacant' },
+      ],
+    }
+
+    const engine = new GameEngine(clearMap)
+    engine.state.pacman.position = { lat: 0.5, lng: 0.5 }
+    engine.state.pacman.currentNodeId = 'mid'
+    engine.state.pacman.travel = null
+    engine.start()
+    engine.tick(performance.now())
+
+    expect(engine.state.remainingVacant).toBe(1)
+    expect(engine.state.floatingScores.some((item) => item.text === 'Reported! 1 left')).toBe(true)
   })
 
   it('keeps reported houses after losing a life but resets them on restart', () => {

@@ -1,7 +1,7 @@
 import type { GeoPoint, RoadGraphEdge, RoadGraphNode, VacantProperty } from '../types'
 
-/** Houses farther than this from any playable edge cannot be reported from the maze. */
-export const MAX_HOUSE_DISTANCE_FROM_ROAD_METERS = 20
+/** Must match report radius — player stays on roads, so houses farther than this are unreachable. */
+export const MAX_HOUSE_DISTANCE_FROM_ROAD_METERS = 15
 
 function distanceMeters(a: GeoPoint, b: GeoPoint): number {
   const latScale = 111_320

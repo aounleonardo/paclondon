@@ -1,3 +1,4 @@
+import { filterReachableVacantHouses } from '../generator/filterReachableVacantHouses'
 import type { Bounds, GeoPoint, PlayableMap, SourceMode, VacantProperty, Viewport } from '../types'
 
 const DEFAULT_MAZE_URL = `${import.meta.env.BASE_URL}mazes/newspeak-house.json`
@@ -71,6 +72,12 @@ export function parsePrecomputedMaze(payload: unknown): PrecomputedMazeFile | nu
     return null
   }
 
+  const vacantHouses = filterReachableVacantHouses(
+    payload.map.vacantHouses.map((house) => ({ ...house, status: 'vacant' as const })),
+    payload.map.nodes,
+    payload.map.edges,
+  )
+
   return {
     id: payload.id,
     label: payload.label,
@@ -78,7 +85,7 @@ export function parsePrecomputedMaze(payload: unknown): PrecomputedMazeFile | nu
     viewport: payload.viewport,
     map: {
       ...payload.map,
-      vacantHouses: payload.map.vacantHouses.map((house) => ({ ...house, status: 'vacant' as const })),
+      vacantHouses,
       sourceMode: payload.map.sourceMode as SourceMode,
     },
   }

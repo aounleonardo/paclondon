@@ -18,7 +18,7 @@ describe('filterReachableVacantHouses', () => {
       ],
       nodes,
       edges,
-      20,
+      15,
     )
 
     expect(kept.map((house) => house.id)).toEqual(['near'])

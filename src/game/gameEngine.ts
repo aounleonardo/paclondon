@@ -1,3 +1,4 @@
+import { MAX_HOUSE_DISTANCE_FROM_ROAD_METERS } from '../generator/filterReachableVacantHouses'
 import type { BonusFruit, BonusFruitType, Direction, EntityState, EntityTravel, FloatingScore, GameEvent, GameState, GeoPoint, GhostMode, GhostState, PlayableMap, RoadGraphEdge, RoadGraphNode, VacantProperty, VisualEffect } from '../types'
 
 const PACMAN_SPEED = 42
@@ -7,7 +8,7 @@ const EYES_SPEED = 84
 const POWER_DURATION_MS = 8_000
 const COLLISION_DISTANCE_METERS = 10
 const PELLET_COLLISION_DISTANCE_METERS = 7
-const VACANT_REPORT_DISTANCE_METERS = 15
+const VACANT_REPORT_DISTANCE_METERS = MAX_HOUSE_DISTANCE_FROM_ROAD_METERS
 const VACANT_REPORT_SCORE = 200
 const REPORT_NOTICE_DURATION_MS = 1_800
 const SPAWN_PROTECTION_MS = 2_000
@@ -728,10 +729,14 @@ export class GameEngine {
       house.status = 'reported'
       this.state.score += VACANT_REPORT_SCORE
       this.awardExtraLifeIfEligible()
-      this.addFloatingNotice('Reported!', pacman, timestamp)
-      this.addFloatingScore(VACANT_REPORT_SCORE, house, timestamp)
       this.pushEvent('report')
       reportedAny = true
+
+      const remainingAfter = this.state.vacantHouses.filter((item) => item.status === 'vacant').length
+      const notice = remainingAfter <= 0
+        ? 'Reported! All clear!'
+        : `Reported! ${remainingAfter} left`
+      this.addFloatingNotice(notice, pacman, timestamp)
     }
 
     if (!reportedAny) {

@@ -6,7 +6,7 @@ import { loadPrecomputedMaze } from './data/precomputedMaze'
 import { loadVacantHouses, selectVacantHousesForPlay } from './data/vacantHouses'
 import { GameEngine } from './game/gameEngine'
 import { generatePlayableMap } from './generator/generatePlayableMap'
-import { loadLocale, localeOptions, modeLabel, saveLocale, statusLabel, translate, type Locale } from './i18n'
+import { loadLocale, localeOptions, modeLabel, saveLocale, translate, type Locale } from './i18n'
 import { MapController } from './map/mapController'
 import { CanvasRenderer } from './render/canvasRenderer'
 import type { AddressPreset, Direction, PlayableMap, VacantProperty } from './types'
@@ -14,6 +14,7 @@ import type { AddressPreset, Direction, PlayableMap, VacantProperty } from './ty
 const RECOMMENDED_ZOOM_MIN = 17
 const RECOMMENDED_ZOOM_MAX = 18
 const RECOMMENDED_ZOOM_RANGE = '17-18'
+const DEFAULT_SPEED = 1.5
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector)
@@ -31,24 +32,62 @@ if (!app) {
 
 app.innerHTML = `
   <div class="shell">
-    <aside class="panel">
-      <div class="corner-control">
-        <select id="locale-select"></select>
+    <main class="stage">
+      <div id="map"></div>
+      <div class="overlay">
+        <canvas id="game-canvas"></canvas>
+        <div id="loading-indicator" class="loading-indicator hidden">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <div id="loading-text"></div>
+        </div>
+        <div id="message" class="message"></div>
       </div>
-      <div>
-        <p class="eyebrow" id="eyebrow"></p>
-        <h1 id="title"></h1>
-        <p class="intro" id="intro"></p>
-      </div>
+    </main>
 
-      <div class="controls">
-        <label id="preset-control" class="speed-control hidden">
-          <span id="preset-label"></span>
-          <div class="search-row">
-            <select id="preset-select"></select>
+    <div class="hud">
+      <div class="hud-left">
+        <div class="hud-brand">
+          <p class="hud-eyebrow" id="eyebrow"></p>
+          <p class="hud-title" id="title"></p>
+        </div>
+        <div class="hud-stats">
+          <div class="hud-stat">
+            <span id="vacant-label"></span>
+            <strong id="vacant-value">0 / 0</strong>
           </div>
+          <div class="hud-stat">
+            <span id="lives-label"></span>
+            <div id="lives-value" class="life-icons"></div>
+          </div>
+        </div>
+      </div>
+      <div class="hud-right">
+        <button id="shortcuts-button" class="hud-button" type="button"></button>
+      </div>
+    </div>
+
+    <aside id="shortcuts-panel" class="shortcuts-panel hidden" aria-label="Shortcuts">
+      <h2 id="shortcuts-heading"></h2>
+      <ul class="shortcuts-list">
+        <li><span id="shortcut-move-label"></span><kbd>Arrows / WASD</kbd></li>
+        <li><span id="shortcut-play-label"></span><kbd>P</kbd></li>
+        <li><span id="shortcut-pause-label"></span><kbd>Space</kbd></li>
+        <li><span id="shortcut-restart-label"></span><kbd>R</kbd></li>
+        <li><span id="shortcut-generate-label"></span><kbd>G</kbd></li>
+        <li><span id="shortcut-speed-label"></span><kbd>[ / ]</kbd></li>
+        <li><span id="shortcut-menu-label"></span><kbd>?</kbd></li>
+      </ul>
+
+      <div class="shortcuts-controls">
+        <label>
+          <span id="locale-label"></span>
+          <select id="locale-select"></select>
         </label>
-        <label class="search">
+        <label id="preset-control" class="hidden">
+          <span id="preset-label"></span>
+          <select id="preset-select"></select>
+        </label>
+        <label>
           <span id="search-label"></span>
           <div class="search-row">
             <input id="search-input" type="text" />
@@ -64,51 +103,19 @@ app.innerHTML = `
         </div>
         <label class="inline-control">
           <span id="speed-label"></span>
-          <input id="speed-input" type="range" min="0.8" max="2.4" step="0.1" value="1.0" />
-          <strong id="speed-value">1.0x</strong>
+          <input id="speed-input" type="range" min="0.8" max="2.4" step="0.1" value="${DEFAULT_SPEED}" />
+          <strong id="speed-value">${DEFAULT_SPEED.toFixed(1)}x</strong>
         </label>
-        <label id="pellet-control" class="inline-control hidden">
-          <span id="pellet-label"></span>
-          <input id="pellet-input" type="range" min="1.0" max="5.0" step="0.5" value="2.0" />
-          <strong id="pellet-value">2.0x</strong>
-        </label>
-      </div>
-
-      <div class="stats">
-        <div><span id="score-label"></span><strong id="score-value">0</strong></div>
-        <div><span id="vacant-label"></span><strong id="vacant-value">0 / 0</strong></div>
-        <div><span id="lives-label"></span><div id="lives-value" class="life-icons"></div></div>
-        <div><span id="status-label"></span><strong id="status-value">Idle</strong></div>
-      </div>
-
-      <div class="tips">
-        <p id="tip-controls"></p>
-        <p id="tip-generate"></p>
-      </div>
-      <div class="debug-line">
-        <span id="mode-label"></span>
-        <strong id="mode-value">idle</strong>
+        <p id="tip-controls" class="intro"></p>
       </div>
     </aside>
-
-    <main class="stage">
-      <div id="map"></div>
-      <div class="overlay">
-        <canvas id="game-canvas"></canvas>
-        <div id="loading-indicator" class="loading-indicator hidden">
-          <div class="loading-spinner" aria-hidden="true"></div>
-          <div id="loading-text"></div>
-        </div>
-        <div id="message" class="message"></div>
-      </div>
-    </main>
   </div>
 `
 
 const eyebrow = requireElement<HTMLElement>('#eyebrow')
 const title = requireElement<HTMLElement>('#title')
-const intro = requireElement<HTMLElement>('#intro')
 const localeSelect = requireElement<HTMLSelectElement>('#locale-select')
+const localeLabel = requireElement<HTMLElement>('#locale-label')
 const presetControl = requireElement<HTMLElement>('#preset-control')
 const presetLabel = requireElement<HTMLElement>('#preset-label')
 const presetSelect = requireElement<HTMLSelectElement>('#preset-select')
@@ -123,26 +130,26 @@ const restartButton = requireElement<HTMLButtonElement>('#restart-button')
 const speedInput = requireElement<HTMLInputElement>('#speed-input')
 const speedLabel = requireElement<HTMLElement>('#speed-label')
 const speedValue = requireElement<HTMLElement>('#speed-value')
-const pelletInput = requireElement<HTMLInputElement>('#pellet-input')
-const pelletLabel = requireElement<HTMLElement>('#pellet-label')
-const pelletValue = requireElement<HTMLElement>('#pellet-value')
-const modeLabelNode = requireElement<HTMLElement>('#mode-label')
-const scoreValue = requireElement<HTMLElement>('#score-value')
-const scoreLabelNode = requireElement<HTMLElement>('#score-label')
 const vacantValue = requireElement<HTMLElement>('#vacant-value')
 const vacantLabelNode = requireElement<HTMLElement>('#vacant-label')
 const livesValue = requireElement<HTMLElement>('#lives-value')
 const livesLabelNode = requireElement<HTMLElement>('#lives-label')
-const statusValue = requireElement<HTMLElement>('#status-value')
-const statusLabelNode = requireElement<HTMLElement>('#status-label')
-const modeValue = requireElement<HTMLElement>('#mode-value')
 const tipControls = requireElement<HTMLElement>('#tip-controls')
-const tipGenerate = requireElement<HTMLElement>('#tip-generate')
 const loadingIndicator = requireElement<HTMLDivElement>('#loading-indicator')
 const loadingText = requireElement<HTMLDivElement>('#loading-text')
 const message = requireElement<HTMLDivElement>('#message')
 const mapRoot = requireElement<HTMLDivElement>('#map')
 const canvas = requireElement<HTMLCanvasElement>('#game-canvas')
+const shortcutsButton = requireElement<HTMLButtonElement>('#shortcuts-button')
+const shortcutsPanel = requireElement<HTMLElement>('#shortcuts-panel')
+const shortcutsHeading = requireElement<HTMLElement>('#shortcuts-heading')
+const shortcutMoveLabel = requireElement<HTMLElement>('#shortcut-move-label')
+const shortcutPlayLabel = requireElement<HTMLElement>('#shortcut-play-label')
+const shortcutPauseLabel = requireElement<HTMLElement>('#shortcut-pause-label')
+const shortcutRestartLabel = requireElement<HTMLElement>('#shortcut-restart-label')
+const shortcutGenerateLabel = requireElement<HTMLElement>('#shortcut-generate-label')
+const shortcutSpeedLabel = requireElement<HTMLElement>('#shortcut-speed-label')
+const shortcutMenuLabel = requireElement<HTMLElement>('#shortcut-menu-label')
 
 const mapController = new MapController(mapRoot)
 const renderer = new CanvasRenderer(canvas)
@@ -177,6 +184,19 @@ function t(key: string, params?: Record<string, string | number>): string {
 function setMessageKey(key: string, params?: Record<string, string | number>): void {
   currentMessage = { key, params }
   setText(message, t(key, params))
+}
+
+function isShortcutsOpen(): boolean {
+  return !shortcutsPanel.classList.contains('hidden')
+}
+
+function setShortcutsOpen(open: boolean): void {
+  shortcutsPanel.classList.toggle('hidden', !open)
+  shortcutsButton.setAttribute('aria-expanded', open ? 'true' : 'false')
+}
+
+function toggleShortcuts(): void {
+  setShortcutsOpen(!isShortcutsOpen())
 }
 
 function setGenerating(active: boolean): void {
@@ -275,7 +295,7 @@ function renderLocale(): void {
 
   setText(eyebrow, t('app.eyebrow'))
   setText(title, t('app.title'))
-  setText(intro, t('app.intro'))
+  setText(localeLabel, t('controls.language'))
   localeSelect.title = t('controls.language')
   setText(presetLabel, t('controls.presets'))
   setText(searchLabel, t('controls.search'))
@@ -285,14 +305,18 @@ function renderLocale(): void {
   setText(pauseButton, t('buttons.pause'))
   setText(restartButton, t('buttons.restart'))
   setText(speedLabel, t('controls.speed'))
-  setText(pelletLabel, t('controls.pellets'))
-  setText(modeLabelNode, t('stats.mode'))
-  setText(scoreLabelNode, t('stats.score'))
   setText(vacantLabelNode, t('stats.vacant'))
   setText(livesLabelNode, t('stats.lives'))
-  setText(statusLabelNode, t('stats.status'))
   setText(tipControls, t('tips.controls'))
-  setHtml(tipGenerate, t('tips.generate'))
+  setText(shortcutsButton, t('buttons.shortcuts'))
+  setText(shortcutsHeading, t('shortcuts.heading'))
+  setText(shortcutMoveLabel, t('shortcuts.move'))
+  setText(shortcutPlayLabel, t('shortcuts.play'))
+  setText(shortcutPauseLabel, t('shortcuts.pause'))
+  setText(shortcutRestartLabel, t('shortcuts.restart'))
+  setText(shortcutGenerateLabel, t('shortcuts.generate'))
+  setText(shortcutSpeedLabel, t('shortcuts.speed'))
+  setText(shortcutMenuLabel, t('shortcuts.menu'))
   updateGenerateButtonHint()
   if (currentMessage.key === 'message.initial' || currentMessage.key.startsWith('message.viewport') || currentMessage.key === 'message.moved') {
     refreshViewportMessage()
@@ -331,9 +355,10 @@ function applySpeed(): void {
   engine?.setSpeedMultiplier(value)
 }
 
-function applyPelletDensity(): void {
-  const value = Number(pelletInput.value)
-  pelletValue.textContent = `${value.toFixed(1)}x`
+function nudgeSpeed(delta: number): void {
+  const next = Math.min(2.4, Math.max(0.8, Number(speedInput.value) + delta))
+  speedInput.value = next.toFixed(1)
+  applySpeed()
 }
 
 function renderLives(count: number): void {
@@ -349,20 +374,14 @@ function formatVacantCount(reported: number, total: number): string {
 function syncHud(): void {
   if (!engine) {
     const previewTotal = playableMap?.vacantHouses.length ?? 0
-    setText(scoreValue, '0')
     setText(vacantValue, formatVacantCount(0, previewTotal))
     renderLives(3)
-    setText(statusValue, playableMap ? statusLabel(currentLocale, 'preview') : statusLabel(currentLocale, 'idle'))
-    setText(modeValue, modeLabel(currentLocale, playableMap?.sourceMode ?? 'idle'))
     return
   }
 
   const totalVacant = engine.state.remainingVacant + engine.state.reportedVacant
-  setText(scoreValue, String(engine.state.score))
   setText(vacantValue, formatVacantCount(engine.state.reportedVacant, totalVacant))
   renderLives(engine.state.lives)
-  setText(statusValue, statusLabel(currentLocale, engine.state.status))
-  setText(modeValue, modeLabel(currentLocale, engine.map.sourceMode))
 
   if (engine.state.status === 'win') {
     setMessageKey('message.win')
@@ -631,7 +650,6 @@ playButton.addEventListener('click', () => {
 pauseButton.addEventListener('click', pause)
 restartButton.addEventListener('click', restart)
 speedInput.addEventListener('input', applySpeed)
-pelletInput.addEventListener('input', applyPelletDensity)
 presetSelect.addEventListener('change', () => {
   void handlePresetSelect()
 })
@@ -640,9 +658,64 @@ localeSelect.addEventListener('change', () => {
   saveLocale(currentLocale)
   renderLocale()
 })
+shortcutsButton.addEventListener('click', toggleShortcuts)
 
 window.addEventListener('keydown', (event) => {
-  if (document.querySelector('input:focus') !== null) {
+  const target = event.target
+  if (target instanceof HTMLElement) {
+    const tag = target.tagName
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || target.isContentEditable) {
+      return
+    }
+  }
+
+  if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
+    event.preventDefault()
+    toggleShortcuts()
+    return
+  }
+
+  if (event.key === 'Escape') {
+    if (isShortcutsOpen()) {
+      event.preventDefault()
+      setShortcutsOpen(false)
+    }
+    return
+  }
+
+  if (event.key === 'p' || event.key === 'P') {
+    event.preventDefault()
+    void play()
+    return
+  }
+
+  if (event.key === ' ' || event.code === 'Space') {
+    event.preventDefault()
+    pause()
+    return
+  }
+
+  if (event.key === 'r' || event.key === 'R') {
+    event.preventDefault()
+    restart()
+    return
+  }
+
+  if (event.key === 'g' || event.key === 'G') {
+    event.preventDefault()
+    void generateMaze()
+    return
+  }
+
+  if (event.key === '[') {
+    event.preventDefault()
+    nudgeSpeed(-0.1)
+    return
+  }
+
+  if (event.key === ']') {
+    event.preventDefault()
+    nudgeSpeed(0.1)
     return
   }
 
@@ -678,7 +751,6 @@ await mapController.ready()
 addressPresets = await loadAddressPresets()
 vacantCatalog = await loadVacantHouses()
 applySpeed()
-applyPelletDensity()
 renderLocale()
 mapController.onViewChange(() => {
   updateGenerateButtonHint()

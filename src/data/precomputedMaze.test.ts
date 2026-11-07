@@ -16,11 +16,14 @@ const viewport: Viewport = {
 const map: PlayableMap = {
   bounds: viewport.bounds,
   center: viewport.center,
-  nodes: [{ id: '1', lng: -0.071, lat: 51.525, neighbors: ['2'] }],
+  nodes: [
+    { id: '1', lng: -0.071, lat: 51.525, neighbors: ['2'] },
+    { id: '2', lng: -0.0705, lat: 51.525, neighbors: ['1'] },
+  ],
   edges: [{ id: 'e1', from: '1', to: '2', kind: 'residential', length: 40 }],
   pellets: [],
   powerPellets: [],
-  vacantHouses: [{ id: 'mock-1', lat: 51.526, lng: -0.071, status: 'vacant' }],
+  vacantHouses: [{ id: 'mock-1', lat: 51.52505, lng: -0.07075, status: 'vacant' }],
   spawnNodeId: '1',
   ghostHomeNodeIds: ['1'],
   sourceMode: 'road',
@@ -48,11 +51,28 @@ describe('parsePrecomputedMaze', () => {
       viewport,
       map: {
         ...map,
-        vacantHouses: [{ id: 'mock-1', lat: 51.526, lng: -0.071, status: 'reported' }],
+        vacantHouses: [{ id: 'mock-1', lat: 51.52505, lng: -0.07075, status: 'reported' }],
       },
     })
 
     expect(parsed?.map.vacantHouses[0]?.status).toBe('vacant')
+  })
+
+  it('drops houses farther than the report radius from playable roads', () => {
+    const parsed = parsePrecomputedMaze({
+      id: 'newspeak-house',
+      label: 'Newspeak House',
+      viewport,
+      map: {
+        ...map,
+        vacantHouses: [
+          { id: 'near', lat: 51.52505, lng: -0.07075, status: 'vacant' },
+          { id: 'far', lat: 51.5265, lng: -0.071, status: 'vacant' },
+        ],
+      },
+    })
+
+    expect(parsed?.map.vacantHouses.map((house) => house.id)).toEqual(['near'])
   })
 
   it('rejects malformed payloads', () => {
