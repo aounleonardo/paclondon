@@ -1,5 +1,15 @@
 import type { GameEngine } from '../game/gameEngine'
 import type { BonusFruit, Direction, GeoPoint, GhostMode, PlayableMap, ScreenPoint, VacantProperty, VisualEffect } from '../types'
+import {
+  CHASER_SPRITES,
+  HOUSE_VARIANT_COUNT,
+  SPRITE_FRAME,
+  SPRITE_FRAMES_PER_DIR,
+  houseVariantIndex,
+  loadCharacterSheets,
+  loadHouseSheets,
+  type PlayerSpriteId,
+} from './spriteAtlas'
 
 const PACMAN_GLOW_RADIUS = 30
 const PACMAN_BODY_RADIUS = 20
@@ -12,6 +22,8 @@ const FRIGHTENED_FLASH_INTERVAL_MS = 160
 const VACANT_HOUSE_COLOR = '#9b5de5'
 const REPORTED_HOUSE_COLOR = '#2dc653'
 const HOUSE_MARKER_RADIUS = 8
+const SPRITE_DRAW_SIZE = 48
+const HOUSE_DRAW_WIDTH = 44
 
 interface LayerCache {
   canvas: HTMLCanvasElement
@@ -60,6 +72,12 @@ export class CanvasRenderer {
   private readonly context: CanvasRenderingContext2D
   private readonly roadLayer = createLayerCanvas()
   private readonly pelletLayer = createLayerCanvas()
+  private showRoads = true
+  private playerSpriteId: PlayerSpriteId = 'player_1'
+  private characterSheets = new Map<string, HTMLImageElement>()
+  private houseEmpty: HTMLImageElement[] = []
+  private houseFilled: HTMLImageElement[] = []
+  private spritesReady = false
 
   public constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -68,6 +86,38 @@ export class CanvasRenderer {
       throw new Error('2D context is not available')
     }
     this.context = context
+  }
+
+  public async loadSprites(): Promise<void> {
+    const [characters, houses] = await Promise.all([
+      loadCharacterSheets([...CHASER_SPRITES, 'player_1', 'player_2', 'player_3']),
+      loadHouseSheets(),
+    ])
+    this.characterSheets = characters
+    this.houseEmpty = houses.empty
+    this.houseFilled = houses.filled
+    this.spritesReady = true
+  }
+
+  public setPlayerSprite(id: PlayerSpriteId): void {
+    this.playerSpriteId = id
+  }
+
+  public setShowRoads(show: boolean): void {
+    if (this.showRoads === show) {
+      return
+    }
+    this.showRoads = show
+    this.roadLayer.key = ''
+  }
+
+  public getShowRoads(): boolean {
+    return this.showRoads
+  }
+
+  public toggleShowRoads(): boolean {
+    this.setShowRoads(!this.showRoads)
+    return this.showRoads
   }
 
   private resize(): { ratio: number; width: number; height: number } {
@@ -122,13 +172,15 @@ export class CanvasRenderer {
     width: number,
     height: number,
   ): void {
-    const key = `roads:${map.nodes.length}:${map.edges.length}:${this.projectionKey(map, project, width, height)}`
+    const key = `roads:${this.showRoads}:${map.nodes.length}:${map.edges.length}:${this.projectionKey(map, project, width, height)}`
     if (this.roadLayer.key === key) {
       return
     }
     this.roadLayer.key = key
     this.prepareLayer(this.roadLayer, ratio, width, height)
-    this.drawRoads(this.roadLayer.context, map, project, width, height)
+    if (this.showRoads) {
+      this.drawRoads(this.roadLayer.context, map, project, width, height)
+    }
   }
 
   private ensurePelletLayer(
@@ -175,13 +227,14 @@ export class CanvasRenderer {
     if (engine.state.status !== 'dying') {
       this.drawPacman(engine.state.pacman.position, engine.state.pacman.pendingDirection, project)
     }
-    for (const ghost of engine.state.ghosts) {
+    for (const [index, ghost] of engine.state.ghosts.entries()) {
       this.drawGhost(
         ghost.position,
         ghost.direction,
         getGhostBodyColor(ghost.mode, ghost.color, engine.state.frightenedUntil, now),
         ghost.mode,
         project,
+        index,
       )
     }
     this.drawVisualEffects(engine.state.visualEffects, project)
@@ -195,18 +248,37 @@ export class CanvasRenderer {
     for (const house of houses) {
       const screen = project(house)
       const reported = house.status === 'reported'
-      const color = reported ? REPORTED_HOUSE_COLOR : VACANT_HOUSE_COLOR
+      const variant = houseVariantIndex(house.id) % Math.max(1, HOUSE_VARIANT_COUNT)
+      const sheet = reported ? this.houseFilled[variant] : this.houseEmpty[variant]
 
+      if (sheet) {
+        const height = HOUSE_DRAW_WIDTH * (sheet.height / Math.max(1, sheet.width))
+        this.context.save()
+        this.context.imageSmoothingEnabled = false
+        if (!reported) {
+          this.context.shadowColor = VACANT_HOUSE_COLOR
+          this.context.shadowBlur = 14
+        }
+        this.context.drawImage(
+          sheet,
+          screen.x - HOUSE_DRAW_WIDTH / 2,
+          screen.y - height * 0.78,
+          HOUSE_DRAW_WIDTH,
+          height,
+        )
+        this.context.restore()
+        continue
+      }
+
+      const color = reported ? REPORTED_HOUSE_COLOR : VACANT_HOUSE_COLOR
       this.context.fillStyle = `${color}33`
       this.context.beginPath()
       this.context.arc(screen.x, screen.y, HOUSE_MARKER_RADIUS * 1.8, 0, Math.PI * 2)
       this.context.fill()
-
       this.context.fillStyle = color
       this.context.beginPath()
       this.context.arc(screen.x, screen.y, HOUSE_MARKER_RADIUS, 0, Math.PI * 2)
       this.context.fill()
-
       this.context.strokeStyle = 'rgba(255, 255, 255, 0.85)'
       this.context.lineWidth = 2
       this.context.beginPath()
@@ -219,12 +291,9 @@ export class CanvasRenderer {
     context: CanvasRenderingContext2D,
     map: PlayableMap,
     project: (point: GeoPoint) => ScreenPoint,
-    width: number,
-    height: number,
+    _width: number,
+    _height: number,
   ): void {
-    context.fillStyle = 'rgba(6, 15, 39, 0.12)'
-    context.fillRect(0, 0, width, height)
-
     context.lineCap = 'round'
     context.lineJoin = 'round'
     const nodeMap = new Map(map.nodes.map((node) => [node.id, node]))
@@ -241,20 +310,65 @@ export class CanvasRenderer {
       const start = project(from)
       const end = project(to)
 
-      context.strokeStyle = edge.synthetic ? 'rgba(72, 202, 228, 0.55)' : 'rgba(7, 12, 20, 0.35)'
-      context.lineWidth = edge.synthetic ? 13 : 16
+      context.strokeStyle = edge.synthetic ? 'rgba(72, 202, 228, 0.22)' : 'rgba(20, 40, 70, 0.18)'
+      context.lineWidth = edge.synthetic ? 12 : 14
       context.beginPath()
       context.moveTo(start.x, start.y)
       context.lineTo(end.x, end.y)
       context.stroke()
 
-      context.strokeStyle = edge.synthetic ? 'rgba(144, 224, 239, 0.95)' : 'rgba(67, 97, 238, 0.98)'
-      context.lineWidth = edge.synthetic ? 7 : 9
+      context.strokeStyle = edge.synthetic ? 'rgba(144, 224, 239, 0.42)' : 'rgba(72, 180, 220, 0.38)'
+      context.lineWidth = edge.synthetic ? 6 : 7
       context.beginPath()
       context.moveTo(start.x, start.y)
       context.lineTo(end.x, end.y)
       context.stroke()
     }
+  }
+
+  private directionIndex(direction: Direction): number {
+    switch (direction) {
+      case 'down':
+        return 0
+      case 'right':
+        return 1
+      case 'up':
+        return 2
+      case 'left':
+        return 3
+    }
+  }
+
+  private drawSpriteSheet(
+    sheet: HTMLImageElement,
+    direction: Direction,
+    screen: ScreenPoint,
+    moving: boolean,
+    options?: { tint?: string; alpha?: number },
+  ): void {
+    const frame = moving
+      ? Math.floor(performance.now() / 90) % SPRITE_FRAMES_PER_DIR
+      : 0
+    const sx = (this.directionIndex(direction) * SPRITE_FRAMES_PER_DIR + frame) * SPRITE_FRAME
+    this.context.save()
+    this.context.imageSmoothingEnabled = false
+    this.context.globalAlpha = options?.alpha ?? 1
+    if (options?.tint) {
+      this.context.shadowColor = options.tint
+      this.context.shadowBlur = 12
+    }
+    this.context.drawImage(
+      sheet,
+      sx,
+      0,
+      SPRITE_FRAME,
+      SPRITE_FRAME,
+      screen.x - SPRITE_DRAW_SIZE / 2,
+      screen.y - SPRITE_DRAW_SIZE / 2,
+      SPRITE_DRAW_SIZE,
+      SPRITE_DRAW_SIZE,
+    )
+    this.context.restore()
   }
 
   private drawPellets(
@@ -286,6 +400,12 @@ export class CanvasRenderer {
 
   private drawPacman(point: GeoPoint, direction: Direction, project: (point: GeoPoint) => ScreenPoint): void {
     const screen = project(point)
+    const sheet = this.spritesReady ? this.characterSheets.get(this.playerSpriteId) : undefined
+    if (sheet) {
+      this.drawSpriteSheet(sheet, direction, screen, true)
+      return
+    }
+
     const angle = directionAngle(direction)
     const mouth = 0.16 + ((Math.sin(performance.now() * 0.018) + 1) * 0.18)
     this.context.fillStyle = 'rgba(255, 214, 10, 0.22)'
@@ -403,9 +523,19 @@ export class CanvasRenderer {
     color: string,
     mode: 'chase' | 'frightened' | 'eyes',
     project: (point: GeoPoint) => ScreenPoint,
+    ghostIndex = 0,
   ): void {
     const screen = project(point)
     const eyeOffset = direction === 'right' ? 2 : direction === 'left' ? -2 : 0
+    const chaserId = CHASER_SPRITES[ghostIndex % CHASER_SPRITES.length]
+    const sheet = this.spritesReady && mode !== 'eyes' ? this.characterSheets.get(chaserId) : undefined
+
+    if (sheet) {
+      const tint = mode === 'frightened' ? FRIGHTENED_GHOST_COLOR : undefined
+      const alpha = mode === 'frightened' ? 0.85 : 1
+      this.drawSpriteSheet(sheet, direction, screen, true, { tint, alpha })
+      return
+    }
 
     if (mode === 'eyes') {
       this.context.save()

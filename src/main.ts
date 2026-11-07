@@ -9,6 +9,8 @@ import { generatePlayableMap } from './generator/generatePlayableMap'
 import { loadLocale, localeOptions, modeLabel, saveLocale, translate, type Locale } from './i18n'
 import { MapController } from './map/mapController'
 import { CanvasRenderer } from './render/canvasRenderer'
+import { tryShowEndGameCta } from './ui/endGameCta'
+import { mountIntroFlow, type BoroughChoice } from './ui/introFlow'
 import type { AddressPreset, Direction, PlayableMap, VacantProperty } from './types'
 
 const RECOMMENDED_ZOOM_MIN = 17
@@ -31,6 +33,7 @@ if (!app) {
 }
 
 app.innerHTML = `
+  <div id="intro-root"></div>
   <div class="shell">
     <main class="stage">
       <div id="map"></div>
@@ -40,11 +43,79 @@ app.innerHTML = `
           <div class="loading-spinner" aria-hidden="true"></div>
           <div id="loading-text"></div>
         </div>
-        <div id="message" class="message"></div>
+        <div id="message" class="message hidden"></div>
       </div>
     </main>
 
-    <div class="hud">
+    <section id="start-screen" class="start-screen" aria-label="Start screen">
+      <div class="start-screen-frame">
+        <div class="start-screen-scroll">
+          <div class="start-screen-inner">
+            <header class="start-hero">
+              <p class="start-kicker" id="start-kicker"></p>
+              <p class="start-brand" id="start-brand"></p>
+              <h1 class="start-headline" id="start-headline"></h1>
+              <p class="start-lede" id="start-lede"></p>
+              <div class="start-legend start-legend-hero" aria-hidden="true">
+                <span class="start-chip"><span class="start-dot is-vacant"></span><span id="start-chip-vacant"></span></span>
+                <span class="start-chip"><span class="start-dot is-reported"></span><span id="start-chip-reported"></span></span>
+                <span class="start-chip"><span class="start-dot is-ghost"></span><span id="start-chip-ghost"></span></span>
+              </div>
+            </header>
+
+            <div class="start-sections">
+              <article class="start-section">
+                <h2 id="start-problem-title"></h2>
+                <p id="start-problem-body"></p>
+                <p id="start-problem-why"></p>
+              </article>
+
+              <article class="start-section">
+                <h2 id="start-idea-title"></h2>
+                <p id="start-idea-body"></p>
+                <ul id="start-idea-list"></ul>
+              </article>
+
+              <article class="start-section">
+                <h2 id="start-play-title"></h2>
+                <ul id="start-play-list"></ul>
+              </article>
+
+              <article class="start-section">
+                <h2 id="start-context-title"></h2>
+                <div class="start-meta">
+                  <div class="start-meta-item">
+                    <span id="start-meta-event-label"></span>
+                    <strong id="start-meta-event"></strong>
+                  </div>
+                  <div class="start-meta-item">
+                    <span id="start-meta-brief-label"></span>
+                    <strong id="start-meta-brief"></strong>
+                  </div>
+                  <div class="start-meta-item">
+                    <span id="start-meta-place-label"></span>
+                    <strong id="start-meta-place"></strong>
+                  </div>
+                  <div class="start-meta-item">
+                    <span id="start-meta-data-label"></span>
+                    <strong id="start-meta-data"></strong>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <footer class="start-dock">
+          <div class="start-dock-inner">
+            <p class="start-cta-note" id="start-cta-note"></p>
+            <button id="start-button" class="start-cta" type="button"></button>
+          </div>
+        </footer>
+      </div>
+    </section>
+
+    <div class="hud hidden" id="game-hud">
       <div class="hud-left">
         <div class="hud-brand">
           <p class="hud-eyebrow" id="eyebrow"></p>
@@ -114,6 +185,34 @@ app.innerHTML = `
 
 const eyebrow = requireElement<HTMLElement>('#eyebrow')
 const title = requireElement<HTMLElement>('#title')
+const gameHud = requireElement<HTMLElement>('#game-hud')
+const startScreen = requireElement<HTMLElement>('#start-screen')
+const startKicker = requireElement<HTMLElement>('#start-kicker')
+const startBrand = requireElement<HTMLElement>('#start-brand')
+const startHeadline = requireElement<HTMLElement>('#start-headline')
+const startLede = requireElement<HTMLElement>('#start-lede')
+const startButton = requireElement<HTMLButtonElement>('#start-button')
+const startCtaNote = requireElement<HTMLElement>('#start-cta-note')
+const startProblemTitle = requireElement<HTMLElement>('#start-problem-title')
+const startProblemBody = requireElement<HTMLElement>('#start-problem-body')
+const startProblemWhy = requireElement<HTMLElement>('#start-problem-why')
+const startIdeaTitle = requireElement<HTMLElement>('#start-idea-title')
+const startIdeaBody = requireElement<HTMLElement>('#start-idea-body')
+const startIdeaList = requireElement<HTMLUListElement>('#start-idea-list')
+const startPlayTitle = requireElement<HTMLElement>('#start-play-title')
+const startPlayList = requireElement<HTMLUListElement>('#start-play-list')
+const startChipVacant = requireElement<HTMLElement>('#start-chip-vacant')
+const startChipReported = requireElement<HTMLElement>('#start-chip-reported')
+const startChipGhost = requireElement<HTMLElement>('#start-chip-ghost')
+const startContextTitle = requireElement<HTMLElement>('#start-context-title')
+const startMetaEventLabel = requireElement<HTMLElement>('#start-meta-event-label')
+const startMetaEvent = requireElement<HTMLElement>('#start-meta-event')
+const startMetaBriefLabel = requireElement<HTMLElement>('#start-meta-brief-label')
+const startMetaBrief = requireElement<HTMLElement>('#start-meta-brief')
+const startMetaPlaceLabel = requireElement<HTMLElement>('#start-meta-place-label')
+const startMetaPlace = requireElement<HTMLElement>('#start-meta-place')
+const startMetaDataLabel = requireElement<HTMLElement>('#start-meta-data-label')
+const startMetaData = requireElement<HTMLElement>('#start-meta-data')
 const localeSelect = requireElement<HTMLSelectElement>('#locale-select')
 const localeLabel = requireElement<HTMLElement>('#locale-label')
 const presetControl = requireElement<HTMLElement>('#preset-control')
@@ -138,6 +237,7 @@ const tipControls = requireElement<HTMLElement>('#tip-controls')
 const loadingIndicator = requireElement<HTMLDivElement>('#loading-indicator')
 const loadingText = requireElement<HTMLDivElement>('#loading-text')
 const message = requireElement<HTMLDivElement>('#message')
+const introRoot = requireElement<HTMLDivElement>('#intro-root')
 const mapRoot = requireElement<HTMLDivElement>('#map')
 const canvas = requireElement<HTMLCanvasElement>('#game-canvas')
 const shortcutsButton = requireElement<HTMLButtonElement>('#shortcuts-button')
@@ -164,6 +264,67 @@ let addressPresets: AddressPreset[] = []
 let vacantCatalog: VacantProperty[] = []
 let movedMessageTimer: number | null = null
 let isGenerating = false
+let startScreenOpen = false
+let defaultMazeLabel = 'Islington'
+startScreen.classList.add('hidden')
+
+function fillList(node: HTMLUListElement, items: string[]): void {
+  node.innerHTML = items.map((item) => `<li>${item}</li>`).join('')
+}
+
+function renderStartScreenCopy(): void {
+  setText(startKicker, t('start.kicker'))
+  setText(startBrand, t('start.brand'))
+  setText(startHeadline, t('start.headline'))
+  setText(startLede, t('start.lede'))
+  setText(startButton, t('start.cta'))
+  setText(startCtaNote, t('start.ctaNote'))
+  setText(startProblemTitle, t('start.problem.title'))
+  setText(startProblemBody, t('start.problem.body'))
+  setText(startProblemWhy, t('start.problem.why'))
+  setText(startIdeaTitle, t('start.idea.title'))
+  setText(startIdeaBody, t('start.idea.body'))
+  fillList(startIdeaList, [
+    t('start.idea.1'),
+    t('start.idea.2'),
+    t('start.idea.3'),
+    t('start.idea.4'),
+  ])
+  setText(startPlayTitle, t('start.play.title'))
+  fillList(startPlayList, [
+    t('start.play.1'),
+    t('start.play.2'),
+    t('start.play.3'),
+    t('start.play.4'),
+    t('start.play.5'),
+  ])
+  setText(startChipVacant, t('start.chip.vacant'))
+  setText(startChipReported, t('start.chip.reported'))
+  setText(startChipGhost, t('start.chip.ghost'))
+  setText(startContextTitle, t('start.context.title'))
+  setText(startMetaEventLabel, t('start.meta.eventLabel'))
+  setText(startMetaEvent, t('start.meta.event'))
+  setText(startMetaBriefLabel, t('start.meta.briefLabel'))
+  setText(startMetaBrief, t('start.meta.brief'))
+  setText(startMetaPlaceLabel, t('start.meta.placeLabel'))
+  setText(startMetaPlace, t('start.meta.place'))
+  setText(startMetaDataLabel, t('start.meta.dataLabel'))
+  setText(startMetaData, t('start.meta.data'))
+}
+
+function dismissStartScreen(): void {
+  if (!startScreenOpen) {
+    return
+  }
+  startScreenOpen = false
+  document.body.classList.remove('is-start-open')
+  startScreen.classList.add('hidden')
+  gameHud.classList.remove('hidden')
+  message.classList.remove('hidden')
+  if (engine) {
+    setMessageKey('message.precomputedReady', { label: defaultMazeLabel })
+  }
+}
 
 function setText(node: HTMLElement, text: string): void {
   if (node.textContent !== text) {
@@ -284,6 +445,7 @@ function updateGenerateButtonHint(): void {
 
 function renderLocale(): void {
   document.documentElement.lang = currentLocale
+  renderStartScreenCopy()
   localeSelect.innerHTML = ''
   for (const option of localeOptions) {
     const element = document.createElement('option')
@@ -382,6 +544,14 @@ function syncHud(): void {
   const totalVacant = engine.state.remainingVacant + engine.state.reportedVacant
   setText(vacantValue, formatVacantCount(engine.state.reportedVacant, totalVacant))
   renderLives(engine.state.lives)
+
+  if (tryShowEndGameCta(engine.state.reportedVacant, () => {
+    if (engine && engine.state.status === 'paused' && engine.state.remainingVacant > 0) {
+      void play()
+    }
+  })) {
+    pause()
+  }
 
   if (engine.state.status === 'win') {
     setMessageKey('message.win')
@@ -534,28 +704,54 @@ function applyPlayableMap(map: PlayableMap): void {
   syncHud()
 }
 
-async function loadDefaultMaze(): Promise<boolean> {
+function boroughIdForChoice(borough: BoroughChoice): string {
+  if (borough.name === 'Tower Hamlets') {
+    return 'newspeak-house'
+  }
+  return defaultBoroughId()
+}
+
+async function loadBoroughPlay(boroughId: string): Promise<boolean> {
   setMessageKey('message.loadingPrecomputed')
   setGenerating(true)
   stopLoop()
   audio.setAmbience(false)
   try {
-    const boroughId = defaultBoroughId()
     const precomputed = await loadBoroughMaze(boroughId)
     if (!precomputed) {
       return false
     }
-    const houses = await loadBoroughVacantHouses(boroughId)
+    defaultMazeLabel = precomputed.label
+    const houses = await loadBoroughVacantHouses(boroughId === 'newspeak-house' ? 'tower-hamlets' : boroughId)
     vacantCatalog = houses.length > 0 ? houses : vacantCatalog
     const map = attachVacantHouses(precomputed.map, vacantCatalog)
     applyPlayableMap(map)
-    setMessageKey('message.precomputedReady', { label: precomputed.label })
+    if (!startScreenOpen) {
+      setMessageKey('message.precomputedReady', { label: precomputed.label })
+    }
     return true
   } catch {
     return false
   } finally {
     setGenerating(false)
   }
+}
+
+async function openStartScreenAfterIntro(borough: BoroughChoice): Promise<void> {
+  mapController.flyTo(borough.lng, borough.lat, 17)
+  if (borough.usePrecomputed) {
+    const loaded = await loadBoroughPlay(boroughIdForChoice(borough))
+    if (!loaded) {
+      setViewportGuidanceMessage()
+    }
+  } else {
+    await generateMaze()
+  }
+  startScreenOpen = true
+  document.body.classList.add('is-start-open')
+  startScreen.classList.remove('hidden')
+  renderStartScreenCopy()
+  syncHud()
 }
 
 async function generateMaze(): Promise<void> {
@@ -653,6 +849,10 @@ playButton.addEventListener('click', () => {
 })
 pauseButton.addEventListener('click', pause)
 restartButton.addEventListener('click', restart)
+startButton.addEventListener('click', () => {
+  dismissStartScreen()
+  void play()
+})
 speedInput.addEventListener('input', applySpeed)
 presetSelect.addEventListener('change', () => {
   void handlePresetSelect()
@@ -671,6 +871,15 @@ window.addEventListener('keydown', (event) => {
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || target.isContentEditable) {
       return
     }
+  }
+
+  if (startScreenOpen) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      dismissStartScreen()
+      void play()
+    }
+    return
   }
 
   if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
@@ -754,8 +963,10 @@ window.addEventListener('resize', () => {
 await mapController.ready()
 addressPresets = await loadAddressPresets()
 vacantCatalog = await loadVacantHouses()
+await renderer.loadSprites().catch(() => undefined)
 applySpeed()
 renderLocale()
+renderStartScreenCopy()
 mapController.onViewChange(() => {
   updateGenerateButtonHint()
   if (!engine) {
@@ -763,8 +974,8 @@ mapController.onViewChange(() => {
   }
   drawCurrentFrame()
 })
-const loadedDefault = await loadDefaultMaze()
-if (!loadedDefault) {
-  setViewportGuidanceMessage()
-}
-syncHud()
+
+const introChoice = await mountIntroFlow(introRoot)
+renderer.setPlayerSprite(introChoice.player)
+introRoot.classList.add('hidden')
+await openStartScreenAfterIntro(introChoice.borough)
