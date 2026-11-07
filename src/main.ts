@@ -586,21 +586,6 @@ async function handleDirection(direction: Direction): Promise<void> {
   syncHud()
 }
 
-async function handleHoldStill(holding: boolean): Promise<void> {
-  if (!engine) {
-    return
-  }
-  await audio.unlock()
-  engine.setHoldingStill(holding)
-  if (holding && engine.state.status === 'playing') {
-    mapController.setInteractive(false)
-    audio.setAmbience(true)
-    startLoop()
-  }
-  processEngineEvents()
-  syncHud()
-}
-
 searchButton.addEventListener('click', () => {
   void handleSearch()
 })
@@ -635,15 +620,6 @@ window.addEventListener('keydown', (event) => {
     return
   }
 
-  if (event.code === 'Space') {
-    if (event.repeat) {
-      return
-    }
-    event.preventDefault()
-    void handleHoldStill(true)
-    return
-  }
-
   const mapKey: Record<string, Direction> = {
     ArrowUp: 'up',
     ArrowDown: 'down',
@@ -666,17 +642,6 @@ window.addEventListener('keydown', (event) => {
 
   event.preventDefault()
   void handleDirection(direction)
-})
-
-window.addEventListener('keyup', (event) => {
-  if (document.querySelector('input:focus') !== null) {
-    return
-  }
-  if (event.code !== 'Space') {
-    return
-  }
-  event.preventDefault()
-  void handleHoldStill(false)
 })
 
 window.addEventListener('resize', () => {

@@ -210,7 +210,7 @@ describe('GameEngine portals', () => {
     expect(engine.state.pacman.position).toEqual({ lng: 0.6225, lat: 0.5 })
   })
 
-  it('reports a vacant house after holding nearby for one second and wins when all are reported', () => {
+  it('reports a vacant house immediately when the player passes within 15m', () => {
     const clearMap: PlayableMap = {
       ...roadMap,
       vacantHouses: [
@@ -220,38 +220,19 @@ describe('GameEngine portals', () => {
 
     const engine = new GameEngine(clearMap)
     engine.state.pacman.position = { lat: 0.5, lng: 0.5 }
-    engine.setHoldingStill(true)
+    engine.state.pacman.currentNodeId = 'mid'
+    engine.state.pacman.travel = null
+    engine.start()
 
-    const start = performance.now()
-    engine.tick(start)
-    expect(engine.state.reportProgress.progress).toBeGreaterThanOrEqual(0)
-    expect(engine.state.vacantHouses[0]?.status).toBe('vacant')
-    expect(engine.state.pacman.position).toEqual({ lat: 0.5, lng: 0.5 })
+    const now = performance.now()
+    engine.tick(now)
 
-    engine.tick(start + 1_050)
-    expect(engine.state.pacman.position).toEqual({ lat: 0.5, lng: 0.5 })
     expect(engine.state.vacantHouses[0]?.status).toBe('reported')
     expect(engine.state.remainingVacant).toBe(0)
     expect(engine.state.reportedVacant).toBe(1)
     expect(engine.state.status).toBe('win')
+    expect(engine.state.floatingScores.some((item) => item.text === 'Reported!')).toBe(true)
     expect(engine.drainEvents().some((event) => event.type === 'report')).toBe(true)
-  })
-
-  it('stops moving while Space hold is active and resumes after release', () => {
-    const engine = new GameEngine(roadMap)
-    engine.state.pacman.currentNodeId = 'mid'
-    engine.state.pacman.position = { lng: 0.5, lat: 0.5 }
-    engine.setDirection('right')
-    engine.setHoldingStill(true)
-    const held = { ...engine.state.pacman.position }
-    const now = performance.now()
-    engine.tick(now)
-    engine.tick(now + 200)
-    expect(engine.state.pacman.position).toEqual(held)
-
-    engine.setHoldingStill(false)
-    engine.tick(now + 400)
-    expect(engine.state.pacman.position.lng).toBeGreaterThan(held.lng)
   })
 
   it('keeps reported houses after losing a life but resets them on restart', () => {

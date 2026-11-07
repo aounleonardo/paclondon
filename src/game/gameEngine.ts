@@ -8,8 +8,8 @@ const POWER_DURATION_MS = 8_000
 const COLLISION_DISTANCE_METERS = 10
 const PELLET_COLLISION_DISTANCE_METERS = 7
 const VACANT_REPORT_DISTANCE_METERS = 15
-const VACANT_REPORT_HOLD_MS = 1_000
 const VACANT_REPORT_SCORE = 200
+const REPORT_NOTICE_DURATION_MS = 1_800
 const SPAWN_PROTECTION_MS = 2_000
 const GHOST_RELEASE_DELAY_MS = 1_200
 const FLOATING_SCORE_DURATION_MS = 1_200
@@ -165,10 +165,6 @@ export class GameEngine {
   private totalPelletsAtLevelStart = 0
   private fruitTriggerIndex = 0
   private extraLivesAwarded = 0
-  private reportHoldHouseId: string | null = null
-  private reportHoldStartedAt = 0
-  private holdingStill = false
-
   public constructor(map: PlayableMap) {
     this.map = map
     for (const node of map.nodes) {
@@ -209,18 +205,10 @@ export class GameEngine {
     return { remaining, reported }
   }
 
-  private clearReportHold(): void {
-    this.reportHoldHouseId = null
-    this.reportHoldStartedAt = 0
-    this.state.reportProgress = { houseId: null, progress: 0 }
-  }
-
   private createInitialState(): GameState {
     const spawnNode = this.requireNode(this.map.spawnNodeId)
     const vacantHouses = this.freshVacantHouses()
     const counts = this.countVacant(vacantHouses)
-    this.reportHoldHouseId = null
-    this.reportHoldStartedAt = 0
     return {
       status: 'preview',
       score: 0,
@@ -344,29 +332,12 @@ export class GameEngine {
     this.totalPelletsAtLevelStart = this.pellets.size
     this.fruitTriggerIndex = 0
     this.extraLivesAwarded = 0
-    this.holdingStill = false
-  }
-
-  public setHoldingStill(holding: boolean): void {
-    if (this.state.status === 'dying' || this.state.status === 'gameover' || this.state.status === 'win') {
-      this.holdingStill = false
-      return
-    }
-    this.holdingStill = holding
-    if (holding && this.state.status === 'preview') {
-      this.start()
-    }
-  }
-
-  public isHoldingStill(): boolean {
-    return this.holdingStill
   }
 
   public setDirection(direction: Direction): void {
     if (this.state.status === 'dying' || this.state.status === 'gameover' || this.state.status === 'win') {
       return
     }
-    this.holdingStill = false
     this.state.pacman.pendingDirection = direction
     this.tryReversePacman(direction)
     if (this.state.status === 'preview') {
@@ -738,61 +709,39 @@ export class GameEngine {
     }
   }
 
-  private nearestVacantHouse(position: GeoPoint): VacantProperty | null {
-    let best: VacantProperty | null = null
-    let bestDistance = Number.POSITIVE_INFINITY
-    for (const house of this.state.vacantHouses) {
-      if (house.status !== 'vacant') {
-        continue
-      }
-      const gap = distanceMeters(position, house)
-      if (gap < bestDistance) {
-        bestDistance = gap
-        best = house
-      }
-    }
-    if (!best || bestDistance > VACANT_REPORT_DISTANCE_METERS) {
-      return null
-    }
-    return best
-  }
-
   private updateVacantReports(timestamp: number): void {
     if (this.state.status !== 'playing') {
       return
     }
 
-    const nearby = this.nearestVacantHouse(this.state.pacman.position)
-    if (!nearby) {
-      this.clearReportHold()
-      return
+    const pacman = this.state.pacman.position
+    let reportedAny = false
+
+    for (const house of this.state.vacantHouses) {
+      if (house.status !== 'vacant') {
+        continue
+      }
+      if (distanceMeters(pacman, house) > VACANT_REPORT_DISTANCE_METERS) {
+        continue
+      }
+
+      house.status = 'reported'
+      this.state.score += VACANT_REPORT_SCORE
+      this.awardExtraLifeIfEligible()
+      this.addFloatingNotice('Reported!', pacman, timestamp)
+      this.addFloatingScore(VACANT_REPORT_SCORE, house, timestamp)
+      this.pushEvent('report')
+      reportedAny = true
     }
 
-    if (this.reportHoldHouseId !== nearby.id) {
-      this.reportHoldHouseId = nearby.id
-      this.reportHoldStartedAt = timestamp
-      this.state.reportProgress = { houseId: nearby.id, progress: 0 }
+    if (!reportedAny) {
       return
     }
-
-    const elapsed = Math.max(0, timestamp - this.reportHoldStartedAt)
-    const progress = Math.min(1, elapsed / VACANT_REPORT_HOLD_MS)
-    this.state.reportProgress = { houseId: nearby.id, progress }
-
-    if (progress < 1) {
-      return
-    }
-
-    nearby.status = 'reported'
-    this.state.score += VACANT_REPORT_SCORE
-    this.awardExtraLifeIfEligible()
-    this.addFloatingScore(VACANT_REPORT_SCORE, nearby, timestamp)
-    this.pushEvent('report')
 
     const counts = this.countVacant(this.state.vacantHouses)
     this.state.remainingVacant = counts.remaining
     this.state.reportedVacant = counts.reported
-    this.clearReportHold()
+    this.state.reportProgress = { houseId: null, progress: 0 }
 
     if (this.state.remainingVacant <= 0) {
       this.state.status = 'win'
@@ -810,6 +759,17 @@ export class GameEngine {
       expiresAt: timestamp + FLOATING_SCORE_DURATION_MS,
     }
     this.state.floatingScores.push(floatingScore)
+  }
+
+  private addFloatingNotice(text: string, position: GeoPoint, timestamp: number): void {
+    this.state.floatingScores.push({
+      id: `notice:${timestamp}:${Math.random().toString(36).slice(2, 7)}`,
+      text,
+      lng: position.lng,
+      lat: position.lat,
+      createdAt: timestamp,
+      expiresAt: timestamp + REPORT_NOTICE_DURATION_MS,
+    })
   }
 
   private addVisualEffect(type: VisualEffect['type'], position: GeoPoint, timestamp: number, duration: number): void {
@@ -939,7 +899,7 @@ export class GameEngine {
     this.frightenedGhostChain = 0
     this.state.bonusFruit = null
     // Reported vacant houses stay green across lives; only Restart resets them.
-    this.clearReportHold()
+    this.state.reportProgress = { houseId: null, progress: 0 }
   }
 
   private resolveCollisions(timestamp: number, pacmanBefore: EntitySnapshot, ghostSnapshotsBefore: EntitySnapshot[]): void {
@@ -1016,10 +976,8 @@ export class GameEngine {
       this.frightenedGhostChain = 0
     }
     this.recoverGhostsAtHome()
-    if (!this.holdingStill) {
-      const pacmanDistance = PACMAN_SPEED * this.speedMultiplier * (delta / 1000)
-      this.moveTraveler(this.state.pacman, pacmanDistance)
-    }
+    const pacmanDistance = PACMAN_SPEED * this.speedMultiplier * (delta / 1000)
+    this.moveTraveler(this.state.pacman, pacmanDistance)
     this.consumePellets()
     this.updateVacantReports(timestamp)
     this.maybeSpawnBonusFruitFromProgress(timestamp)
