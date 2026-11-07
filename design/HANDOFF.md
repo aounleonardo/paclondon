@@ -71,3 +71,7 @@ Open `handoff/screens-tinylondon.html`. Play goes into **Islington**, starting a
 ## Reference
 
 - `reference/islington-demo.png`: target look for the play screen (Islington, dark map). Map in the image: tiny.london by Boris Starkov.
+
+## Deck
+
+- `deck/empty-homes-deck.pdf`: 7-slide pitch (open, problem, solution, what it is, how it works, demo, stay in touch). Live app: https://paclondon.netlify.app
