@@ -4,6 +4,7 @@
 # label|query
 # label|lat|lng
 
+Newspeak House, Tower Hamlets|51.525134|-0.071273
 Shibuya Crossing, Tokyo|Shibuya Crossing, Tokyo, Japan
 Asakusa, Tokyo|Asakusa, Tokyo, Japan
 Le Marais, Paris|Le Marais, Paris, France

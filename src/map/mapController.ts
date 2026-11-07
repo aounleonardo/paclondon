@@ -20,6 +20,13 @@ const TILE_STYLE: StyleSpecification = {
   ],
 } as const
 
+/** Newspeak House, 133 Bethnal Grn Rd, London E2 7DG */
+export const DEFAULT_SPAWN = {
+  lng: -0.071273,
+  lat: 51.525134,
+  zoom: 17,
+} as const
+
 export class MapController {
   private readonly map: Map
 
@@ -27,8 +34,8 @@ export class MapController {
     this.map = new maplibregl.Map({
       container,
       style: TILE_STYLE,
-      center: [-73.9855, 40.758],
-      zoom: 15,
+      center: [DEFAULT_SPAWN.lng, DEFAULT_SPAWN.lat],
+      zoom: DEFAULT_SPAWN.zoom,
     })
 
     this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), 'top-right')
@@ -62,10 +69,10 @@ export class MapController {
     }
   }
 
-  public flyTo(lng: number, lat: number): void {
+  public flyTo(lng: number, lat: number, zoom = DEFAULT_SPAWN.zoom): void {
     this.map.flyTo({
       center: [lng, lat],
-      zoom: 15,
+      zoom,
       speed: 0.8,
     })
   }
