@@ -1,4 +1,5 @@
 import type { GeoPoint, Pellet, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, VacantProperty, Viewport } from '../types'
+import { simplifyRoadGraph } from './simplifyRoadGraph'
 
 interface GenerateOptions {
   pelletDensity?: number
@@ -416,12 +417,13 @@ function buildPellets(
 }
 
 function prepareRoadNetwork(viewport: Viewport, roadData: RoadData): { roadData: RoadData; sourceMode: SourceMode } {
-  const component = largestComponent(roadData)
+  const simplified = simplifyRoadGraph(roadData)
+  const component = largestComponent(simplified)
   if (component.nodes.length < MIN_NODE_COUNT || component.edges.length < MIN_EDGE_COUNT) {
     if (component.nodes.length >= 4) {
       const hybrid = connectDeadEnds(component)
       if (hybrid.roadData.nodes.length >= 4 && hybrid.roadData.edges.length >= 6) {
-        return { roadData: hybrid.roadData, sourceMode: 'hybrid' }
+        return { roadData: simplifyRoadGraph(hybrid.roadData), sourceMode: 'hybrid' }
       }
     }
     return { roadData: fallbackGrid(viewport), sourceMode: 'generated' }
@@ -429,7 +431,7 @@ function prepareRoadNetwork(viewport: Viewport, roadData: RoadData): { roadData:
 
   const hybrid = connectDeadEnds(component)
   return {
-    roadData: hybrid.roadData,
+    roadData: simplifyRoadGraph(hybrid.roadData),
     sourceMode: hybrid.added > 0 ? 'hybrid' : 'road',
   }
 }

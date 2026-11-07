@@ -58,8 +58,9 @@ describe('generatePlayableMap', () => {
 
     const map = generatePlayableMap(viewport, roadData)
     expect(['road', 'hybrid']).toContain(map.sourceMode)
-    expect(map.edges.length).toBeGreaterThanOrEqual(roadData.edges.length)
-    expect(map.pellets.length).toBeGreaterThan(28)
+    expect(map.edges.length).toBeGreaterThan(0)
+    expect(map.nodes.length).toBeLessThanOrEqual(roadData.nodes.length)
+    expect(map.pellets.length).toBeGreaterThan(0)
   })
 
   it('assigns four ghost home nodes when enough nodes exist', () => {
