@@ -404,12 +404,23 @@ function processEngineEvents(): void {
   }
 }
 
+function syncCameraFollow(): void {
+  if (!engine) {
+    return
+  }
+  if (engine.state.status !== 'playing' && engine.state.status !== 'dying') {
+    return
+  }
+  mapController.follow(engine.state.pacman.position)
+}
+
 function loop(timestamp: number): void {
   if (!engine) {
     return
   }
   engine.tick(timestamp)
   processEngineEvents()
+  syncCameraFollow()
   drawCurrentFrame()
   syncHud()
   animationFrame = requestAnimationFrame(loop)
@@ -531,6 +542,8 @@ async function play(): Promise<void> {
   }
   await audio.unlock()
   engine.start()
+  mapController.setInteractive(false)
+  mapController.follow(engine.state.pacman.position)
   audio.setAmbience(true)
   startLoop()
   processEngineEvents()
@@ -542,6 +555,7 @@ function pause(): void {
     return
   }
   engine.pause()
+  mapController.setInteractive(engine.state.status !== 'playing')
   audio.setAmbience(engine.state.status === 'playing')
   syncHud()
 }
@@ -551,6 +565,7 @@ function restart(): void {
     return
   }
   engine.restart()
+  mapController.setInteractive(true)
   audio.setAmbience(false)
   drawCurrentFrame()
   syncHud()
@@ -563,9 +578,25 @@ async function handleDirection(direction: Direction): Promise<void> {
   await audio.unlock()
   engine.setDirection(direction)
   if (engine.state.status === 'playing') {
+    mapController.setInteractive(false)
     audio.setAmbience(true)
   }
   startLoop()
+  processEngineEvents()
+  syncHud()
+}
+
+async function handleHoldStill(holding: boolean): Promise<void> {
+  if (!engine) {
+    return
+  }
+  await audio.unlock()
+  engine.setHoldingStill(holding)
+  if (holding && engine.state.status === 'playing') {
+    mapController.setInteractive(false)
+    audio.setAmbience(true)
+    startLoop()
+  }
   processEngineEvents()
   syncHud()
 }
@@ -600,7 +631,18 @@ localeSelect.addEventListener('change', () => {
 })
 
 window.addEventListener('keydown', (event) => {
-  if (document.querySelector("input:focus") !== null) return
+  if (document.querySelector('input:focus') !== null) {
+    return
+  }
+
+  if (event.code === 'Space') {
+    if (event.repeat) {
+      return
+    }
+    event.preventDefault()
+    void handleHoldStill(true)
+    return
+  }
 
   const mapKey: Record<string, Direction> = {
     ArrowUp: 'up',
@@ -624,6 +666,17 @@ window.addEventListener('keydown', (event) => {
 
   event.preventDefault()
   void handleDirection(direction)
+})
+
+window.addEventListener('keyup', (event) => {
+  if (document.querySelector('input:focus') !== null) {
+    return
+  }
+  if (event.code !== 'Space') {
+    return
+  }
+  event.preventDefault()
+  void handleHoldStill(false)
 })
 
 window.addEventListener('resize', () => {

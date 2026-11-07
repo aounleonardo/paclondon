@@ -167,6 +167,7 @@ export class GameEngine {
   private extraLivesAwarded = 0
   private reportHoldHouseId: string | null = null
   private reportHoldStartedAt = 0
+  private holdingStill = false
 
   public constructor(map: PlayableMap) {
     this.map = map
@@ -343,12 +344,29 @@ export class GameEngine {
     this.totalPelletsAtLevelStart = this.pellets.size
     this.fruitTriggerIndex = 0
     this.extraLivesAwarded = 0
+    this.holdingStill = false
+  }
+
+  public setHoldingStill(holding: boolean): void {
+    if (this.state.status === 'dying' || this.state.status === 'gameover' || this.state.status === 'win') {
+      this.holdingStill = false
+      return
+    }
+    this.holdingStill = holding
+    if (holding && this.state.status === 'preview') {
+      this.start()
+    }
+  }
+
+  public isHoldingStill(): boolean {
+    return this.holdingStill
   }
 
   public setDirection(direction: Direction): void {
     if (this.state.status === 'dying' || this.state.status === 'gameover' || this.state.status === 'win') {
       return
     }
+    this.holdingStill = false
     this.state.pacman.pendingDirection = direction
     this.tryReversePacman(direction)
     if (this.state.status === 'preview') {
@@ -998,8 +1016,10 @@ export class GameEngine {
       this.frightenedGhostChain = 0
     }
     this.recoverGhostsAtHome()
-    const pacmanDistance = PACMAN_SPEED * this.speedMultiplier * (delta / 1000)
-    this.moveTraveler(this.state.pacman, pacmanDistance)
+    if (!this.holdingStill) {
+      const pacmanDistance = PACMAN_SPEED * this.speedMultiplier * (delta / 1000)
+      this.moveTraveler(this.state.pacman, pacmanDistance)
+    }
     this.consumePellets()
     this.updateVacantReports(timestamp)
     this.maybeSpawnBonusFruitFromProgress(timestamp)
