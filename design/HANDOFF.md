@@ -67,3 +67,7 @@ Open `handoff/screens-tinylondon.html`. Play goes into **Islington**, starting a
 ## Data credits
 
 - Roads and homes: © OpenStreetMap contributors (ODbL). Postcodes: postcodes.io (Open Government Licence).
+
+## Reference
+
+- `reference/islington-demo.png`: target look for the play screen (Islington, dark map). Map in the image: tiny.london by Boris Starkov.
