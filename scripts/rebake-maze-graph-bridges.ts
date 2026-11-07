@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   const bytes = Buffer.byteLength(JSON.stringify(payload))
   console.log(
     `Rebaked ${path.relative(root, mazePath)}: edges ${raw.map.edges.length} → ${bridged.edges.length}`
-      + ` (≤1 m bridge edges ${beforeBridges} → ${afterBridges}, ${(bytes / 1024).toFixed(1)} KB)`,
+      + ` (≤5 m bridge edges ${beforeBridges} → ${afterBridges}, ${(bytes / 1024).toFixed(1)} KB)`,
   )
 
   if (!SHOULD_UPLOAD) {

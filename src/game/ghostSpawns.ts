@@ -1,9 +1,12 @@
 import type { GeoPoint, RoadGraphNode } from '../types'
 
-/** Ghosts start within this radius of the player spawn (1 statute mile). */
-export const GHOST_SPAWN_RADIUS_METERS = 1609.34
+/** Furthest ghost home from the player at round start. */
+export const GHOST_SPAWN_RADIUS_METERS = 320
 
-const MIN_GHOST_SPAWN_DISTANCE_METERS = 45
+const MIN_GHOST_SPAWN_DISTANCE_METERS = 55
+
+/** Ring distances so ghosts stay nearby but not stacked on one junction. */
+const GHOST_SPAWN_TARGET_DISTANCES_METERS = [70, 130, 200, 280]
 
 function distanceMeters(a: GeoPoint, b: GeoPoint): number {
   const latScale = 111_320
@@ -13,8 +16,31 @@ function distanceMeters(a: GeoPoint, b: GeoPoint): number {
   return Math.hypot(dx, dy)
 }
 
+function pickClosestToDistance(
+  entries: Array<{ node: RoadGraphNode; distance: number }>,
+  targetMeters: number,
+  used: Set<string>,
+): string | null {
+  let bestId: string | null = null
+  let bestGap = Number.POSITIVE_INFINITY
+  for (const entry of entries) {
+    if (used.has(entry.node.id)) {
+      continue
+    }
+    if (entry.distance > GHOST_SPAWN_RADIUS_METERS) {
+      continue
+    }
+    const gap = Math.abs(entry.distance - targetMeters)
+    if (gap < bestGap) {
+      bestGap = gap
+      bestId = entry.node.id
+    }
+  }
+  return bestId
+}
+
 /**
- * Pick distinct road nodes for ghost homes near the player, spread between min and max radius.
+ * Pick distinct road nodes for ghost homes near the player on concentric rings.
  */
 export function chooseGhostHomesNear(
   nodes: RoadGraphNode[],
@@ -23,41 +49,43 @@ export function chooseGhostHomesNear(
   maxRadiusMeters = GHOST_SPAWN_RADIUS_METERS,
 ): string[] {
   const traversable = nodes.filter((node) => node.neighbors.length > 0)
-  const withinRadius = traversable
+  const ranked = traversable
     .map((node) => ({ node, distance: distanceMeters(node, anchor) }))
-    .filter((entry) => entry.distance <= maxRadiusMeters && entry.distance >= MIN_GHOST_SPAWN_DISTANCE_METERS)
+    .filter((entry) => entry.distance >= MIN_GHOST_SPAWN_DISTANCE_METERS && entry.distance <= maxRadiusMeters)
     .sort((a, b) => a.distance - b.distance)
 
-  const pool = withinRadius.length >= count
-    ? withinRadius
-    : traversable
-      .map((node) => ({ node, distance: distanceMeters(node, anchor) }))
-      .filter((entry) => entry.distance >= MIN_GHOST_SPAWN_DISTANCE_METERS)
-      .sort((a, b) => a.distance - b.distance)
+  const fallback = traversable
+    .map((node) => ({ node, distance: distanceMeters(node, anchor) }))
+    .filter((entry) => entry.distance >= MIN_GHOST_SPAWN_DISTANCE_METERS)
+    .sort((a, b) => a.distance - b.distance)
+
+  const pool = ranked.length >= count ? ranked : fallback
 
   if (pool.length === 0) {
     return traversable.slice(0, count).map((node) => node.id)
   }
 
+  const used = new Set<string>()
   const picks: string[] = []
-  const spreadSteps = count
-  for (let index = 0; index < spreadSteps; index += 1) {
-    const slot = Math.min(
-      pool.length - 1,
-      Math.floor(((index + 1) / (spreadSteps + 1)) * pool.length),
-    )
-    const candidate = pool[slot]?.node.id
-    if (!candidate || picks.includes(candidate)) {
-      continue
+  for (const target of GHOST_SPAWN_TARGET_DISTANCES_METERS.slice(0, count)) {
+    const id = pickClosestToDistance(pool, target, used)
+      ?? pickClosestToDistance(
+        fallback.filter((entry) => entry.distance <= maxRadiusMeters),
+        target,
+        used,
+      )
+    if (id) {
+      used.add(id)
+      picks.push(id)
     }
-    picks.push(candidate)
   }
 
   for (const entry of pool) {
     if (picks.length >= count) {
       break
     }
-    if (!picks.includes(entry.node.id)) {
+    if (!used.has(entry.node.id)) {
+      used.add(entry.node.id)
       picks.push(entry.node.id)
     }
   }

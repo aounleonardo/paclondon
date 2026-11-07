@@ -4,8 +4,8 @@ import type { Bounds, GeoPoint, PlayableMap, RoadData, SourceMode, VacantPropert
 
 const DEFAULT_MAZE_URL = `${import.meta.env.BASE_URL}mazes/islington.json`
 
-/** Mazes baked at or above this version already include 1 m junction bridges. */
-export const GRAPH_BRIDGE_VERSION = 1
+/** Mazes baked at or above this version already include 5 m junction bridges. */
+export const GRAPH_BRIDGE_VERSION = 2
 
 export interface PrecomputedMazeFile {
   id: string

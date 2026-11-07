@@ -1,7 +1,7 @@
 import type { RoadData, RoadGraphEdge, RoadGraphNode } from '../types'
 
-/** Connect endpoints separated by tiny OSM gaps so junctions stay walkable. */
-export const DEFAULT_BRIDGE_GAP_METERS = 1
+/** Connect endpoints separated by small OSM gaps so junctions stay walkable. */
+export const DEFAULT_BRIDGE_GAP_METERS = 5
 
 function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const latScale = 111_320

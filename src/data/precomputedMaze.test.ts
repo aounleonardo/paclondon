@@ -62,7 +62,7 @@ describe('parsePrecomputedMaze', () => {
     const parsed = parsePrecomputedMaze({
       id: 'islington',
       label: 'Islington',
-      graphBridgeVersion: 1,
+      graphBridgeVersion: 2,
       viewport,
       map: {
         ...map,
@@ -71,7 +71,7 @@ describe('parsePrecomputedMaze', () => {
     })
 
     expect(parsed?.map.edges.filter((edge) => edge.id.startsWith('bridge:'))).toHaveLength(1)
-    expect(parsed?.graphBridgeVersion).toBe(1)
+    expect(parsed?.graphBridgeVersion).toBe(2)
   })
 
   it('drops houses farther than the report radius from playable roads', () => {
