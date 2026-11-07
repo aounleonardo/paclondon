@@ -1,5 +1,5 @@
 import type { GameEngine } from '../game/gameEngine'
-import type { BonusFruit, Direction, GeoPoint, GhostMode, PlayableMap, ScreenPoint, VisualEffect } from '../types'
+import type { BonusFruit, Direction, GeoPoint, GhostMode, PlayableMap, ReportProgress, ScreenPoint, VacantProperty, VisualEffect } from '../types'
 
 const PACMAN_GLOW_RADIUS = 30
 const PACMAN_BODY_RADIUS = 20
@@ -9,6 +9,10 @@ const FRIGHTENED_GHOST_COLOR = '#6a4c93'
 const FRIGHTENED_GHOST_WARNING_COLOR = '#f8f9fa'
 const FRIGHTENED_WARNING_MS = 2_000
 const FRIGHTENED_FLASH_INTERVAL_MS = 160
+const VACANT_HOUSE_COLOR = '#9b5de5'
+const REPORTED_HOUSE_COLOR = '#2dc653'
+const HOUSE_MARKER_RADIUS = 8
+const REPORT_RING_RADIUS = 16
 
 interface LayerCache {
   canvas: HTMLCanvasElement
@@ -153,6 +157,7 @@ export class CanvasRenderer {
     this.context.drawImage(this.roadLayer.canvas, 0, 0, width, height)
     this.context.drawImage(this.pelletLayer.canvas, 0, 0, width, height)
     this.drawPowerPellets(map.powerPellets, project)
+    this.drawVacantHouses(map.vacantHouses, { houseId: null, progress: 0 }, project)
     this.drawSpawn(map, project)
   }
 
@@ -166,6 +171,7 @@ export class CanvasRenderer {
     this.context.drawImage(this.roadLayer.canvas, 0, 0, width, height)
     this.context.drawImage(this.pelletLayer.canvas, 0, 0, width, height)
     this.drawPowerPellets(pellets.powerPellets, project)
+    this.drawVacantHouses(engine.getVacantHouses(), engine.state.reportProgress, project)
     this.drawBonusFruit(engine.getBonusFruit(), project)
     if (engine.state.status !== 'dying') {
       this.drawPacman(engine.state.pacman.position, engine.state.pacman.pendingDirection, project)
@@ -181,6 +187,49 @@ export class CanvasRenderer {
     }
     this.drawVisualEffects(engine.state.visualEffects, project)
     this.drawFloatingScores(engine.state.floatingScores, project)
+  }
+
+  private drawVacantHouses(
+    houses: VacantProperty[],
+    reportProgress: ReportProgress,
+    project: (point: GeoPoint) => ScreenPoint,
+  ): void {
+    for (const house of houses) {
+      const screen = project(house)
+      const reported = house.status === 'reported'
+      const color = reported ? REPORTED_HOUSE_COLOR : VACANT_HOUSE_COLOR
+
+      this.context.fillStyle = `${color}33`
+      this.context.beginPath()
+      this.context.arc(screen.x, screen.y, HOUSE_MARKER_RADIUS * 1.8, 0, Math.PI * 2)
+      this.context.fill()
+
+      this.context.fillStyle = color
+      this.context.beginPath()
+      this.context.arc(screen.x, screen.y, HOUSE_MARKER_RADIUS, 0, Math.PI * 2)
+      this.context.fill()
+
+      this.context.strokeStyle = 'rgba(255, 255, 255, 0.85)'
+      this.context.lineWidth = 2
+      this.context.beginPath()
+      this.context.arc(screen.x, screen.y, HOUSE_MARKER_RADIUS, 0, Math.PI * 2)
+      this.context.stroke()
+
+      if (!reported && reportProgress.houseId === house.id && reportProgress.progress > 0) {
+        this.context.strokeStyle = color
+        this.context.lineWidth = 4
+        this.context.lineCap = 'round'
+        this.context.beginPath()
+        this.context.arc(
+          screen.x,
+          screen.y,
+          REPORT_RING_RADIUS,
+          -Math.PI / 2,
+          -Math.PI / 2 + reportProgress.progress * Math.PI * 2,
+        )
+        this.context.stroke()
+      }
+    }
   }
 
   private drawRoads(
