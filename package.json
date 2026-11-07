@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "precompute:maze": "npx vite-node scripts/precompute-newspeak-maze.ts"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

@@ -1,6 +1,10 @@
 import type { AddressPreset, Bounds, RoadData, RoadGraphEdge, RoadGraphNode, SearchResult } from '../types'
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
+const OVERPASS_URLS = [
+  'https://lz4.overpass-api.de/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+  'https://overpass-api.de/api/interpreter',
+] as const
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search'
 const ADDRESS_PRESETS_URL = `${import.meta.env.BASE_URL}addresses.txt`
 /** Main streets only — drop alleys/footways that create micro-mazes. */
@@ -127,9 +131,9 @@ export async function loadAddressPresets(): Promise<AddressPreset[]> {
   }
 }
 
-export async function fetchRoadData(bounds: Bounds): Promise<RoadData> {
+async function fetchOverpassPayload(bounds: Bounds): Promise<OverpassResponse> {
   const query = `
-    [out:json][timeout:20];
+    [out:json][timeout:25];
     (
       way["highway"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
     );
@@ -137,19 +141,33 @@ export async function fetchRoadData(bounds: Bounds): Promise<RoadData> {
     out body;
   `
 
-  const response = await fetch(OVERPASS_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain;charset=UTF-8',
-    },
-    body: query,
-  })
-
-  if (!response.ok) {
-    throw new Error('Road data request failed')
+  let lastError: Error | null = null
+  for (const url of OVERPASS_URLS) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=UTF-8',
+          Accept: 'application/json',
+          'User-Agent': 'paclondon/0.0.0 (precompute; local maze bake)',
+        },
+        body: query,
+      })
+      if (!response.ok) {
+        lastError = new Error(`Road data request failed (${response.status} from ${url})`)
+        continue
+      }
+      return await response.json() as OverpassResponse
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Road data request failed')
+    }
   }
 
-  const payload = await response.json() as OverpassResponse
+  throw lastError ?? new Error('Road data request failed')
+}
+
+export async function fetchRoadData(bounds: Bounds): Promise<RoadData> {
+  const payload = await fetchOverpassPayload(bounds)
   const nodeLookup = new Map<number, OverpassNodeElement>()
   const graphNodes = new Map<string, RoadGraphNode>()
   const graphEdges: RoadGraphEdge[] = []

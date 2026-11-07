@@ -2,6 +2,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import './style.css'
 import { SynthAudio } from './audio/synthAudio'
 import { fetchRoadData, loadAddressPresets, searchPlaces } from './data/overpass'
+import { loadPrecomputedMaze } from './data/precomputedMaze'
 import { loadVacantHouses, selectVacantHousesForPlay } from './data/vacantHouses'
 import { GameEngine } from './game/gameEngine'
 import { generatePlayableMap } from './generator/generatePlayableMap'
@@ -502,6 +503,38 @@ async function handlePresetSelect(): Promise<void> {
   }
 }
 
+function applyPlayableMap(map: PlayableMap): void {
+  playableMap = map
+  mapController.fitToPoints([
+    ...map.nodes,
+    ...map.vacantHouses,
+  ])
+  engine = new GameEngine(map)
+  applySpeed()
+  drawCurrentFrame()
+  syncHud()
+}
+
+async function loadDefaultMaze(): Promise<boolean> {
+  setMessageKey('message.loadingPrecomputed')
+  setGenerating(true)
+  stopLoop()
+  audio.setAmbience(false)
+  try {
+    const precomputed = await loadPrecomputedMaze()
+    if (!precomputed) {
+      return false
+    }
+    applyPlayableMap(precomputed.map)
+    setMessageKey('message.precomputedReady', { label: precomputed.label })
+    return true
+  } catch {
+    return false
+  } finally {
+    setGenerating(false)
+  }
+}
+
 async function generateMaze(): Promise<void> {
   setMessageKey('message.loading')
   setGenerating(true)
@@ -511,22 +544,15 @@ async function generateMaze(): Promise<void> {
     const viewport = mapController.getViewport()
     const roadData = await fetchRoadData(viewport.bounds)
     const vacantHouses = selectVacantHousesForPlay(vacantCatalog, viewport.bounds, viewport.center)
-    playableMap = generatePlayableMap(viewport, roadData, { vacantHouses })
-    mapController.fitToPoints([
-      ...playableMap.nodes,
-      ...playableMap.vacantHouses,
-    ])
-    engine = new GameEngine(playableMap)
-    applySpeed()
-    drawCurrentFrame()
-    syncHud()
+    const map = generatePlayableMap(viewport, roadData, { vacantHouses })
+    applyPlayableMap(map)
     if (viewport.zoom < RECOMMENDED_ZOOM_MIN) {
       setMessageKey('message.generatedWide', {
-        mode: modeLabel(currentLocale, playableMap.sourceMode).toLowerCase(),
+        mode: modeLabel(currentLocale, map.sourceMode).toLowerCase(),
         zoom: viewport.zoom.toFixed(1),
       })
     } else {
-      setMessageKey('message.generated', { mode: modeLabel(currentLocale, playableMap.sourceMode).toLowerCase() })
+      setMessageKey('message.generated', { mode: modeLabel(currentLocale, map.sourceMode).toLowerCase() })
     }
   } catch {
     setMessageKey('message.generateFailed')
@@ -661,5 +687,8 @@ mapController.onViewChange(() => {
   }
   drawCurrentFrame()
 })
-setViewportGuidanceMessage()
+const loadedDefault = await loadDefaultMaze()
+if (!loadedDefault) {
+  setViewportGuidanceMessage()
+}
 syncHud()
