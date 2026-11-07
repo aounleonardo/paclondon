@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Empty Homes Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Silkscreen:wght@400;700&family=Pixelify+Sans:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.21.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@5.21.1/dist/maplibre-gl.js"></script>
+<script src="handoff/pixel-map-style.js"></script>
+<style>
+:root{
+  --bg:#1a1a1a; --panel:#232323; --line:#3a3a3a; --text:#e8e6e1; --muted:#a09c94;
+  --accent:#b46cff; --ok:#46d37a;
+  --s1:8px; --s2:16px; --s3:24px; --s4:40px; --s5:64px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:var(--s4) var(--s2);display:grid;gap:var(--s5)}
+header{display:grid;gap:var(--s1)}
+h1{font:20px/1.4 "Press Start 2P",monospace;margin:0}
+h2{font:14px/1.5 "Press Start 2P",monospace;margin:0}
+h3{font-size:16px;margin:0}
+p{margin:0;color:var(--muted)}
+nav{display:flex;gap:var(--s2);flex-wrap:wrap}
+nav a{color:var(--accent)}
+section{display:grid;gap:var(--s3)}
+.intro{display:grid;gap:var(--s1);max-width:760px}
+code,pre{font:13px/1.5 ui-monospace,Menlo,monospace}
+pre{background:#121212;border:1px solid var(--line);padding:var(--s2);overflow:auto;margin:0;border-radius:4px}
+
+/* map */
+.mapbox{display:grid;gap:var(--s2)}
+.controls{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:end}
+.controls label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+select{appearance:none;background:#121212 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a09c94'/%3E%3C/svg%3E") no-repeat right 12px center;color:var(--text);border:1px solid var(--line);padding:8px 36px 8px 12px;border-radius:4px;font:inherit}
+#map{height:520px;border:1px solid var(--line);border-radius:4px}
+#map .maplibregl-canvas{image-rendering:pixelated}
+
+/* sprites */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--s2)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;display:grid;grid-template-rows:auto 1fr;overflow:hidden}
+.card.picked{border-color:var(--ok)}
+.thumb{height:170px;background:#121212;display:grid;place-items:center;overflow:hidden}
+.thumb img{max-width:100%;max-height:100%;image-rendering:pixelated}
+.thumb span{color:var(--muted);font-size:13px;padding:var(--s2);text-align:center}
+.body{padding:var(--s2);display:grid;gap:var(--s1);align-content:start}
+.meta{font-size:13px;color:var(--muted)}
+.lic{display:inline-block;font-size:12px;padding:2px 6px;border-radius:3px;background:#2e3b2f;color:#9fe0b1}
+.lic.warn{background:#3b342a;color:#e6c48f}
+.roles{display:flex;flex-wrap:wrap;gap:var(--s1) var(--s2);font-size:14px}
+.roles label{display:flex;gap:6px;align-items:center}
+.card a{color:var(--accent);font-size:13px}
+.export{display:grid;gap:var(--s2)}
+button{font:12px "Press Start 2P",monospace;background:var(--accent);color:#121212;border:0;padding:12px 16px;border-radius:3px;cursor:pointer;justify-self:start}
+
+/* ui styles */
+.styles{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:var(--s3)}
+.opt{display:grid;gap:var(--s2)}
+.screen{aspect-ratio:9/12;border-radius:4px;overflow:hidden;position:relative;display:grid;align-content:center;justify-items:center;gap:var(--s3);padding:var(--s3);text-align:center}
+.screen .btns{display:grid;gap:var(--s2);width:100%;max-width:220px}
+
+/* A: night bus */
+.a{background:#14122a;color:#f1ecff;font-family:"VT323",monospace;font-size:22px}
+.a .t{font:18px/1.6 "Press Start 2P",monospace;color:#c58cff}
+.a .b{font:11px "Press Start 2P",monospace;padding:14px;background:#b46cff;color:#14122a;box-shadow:4px 4px 0 #6a2fb3}
+.a .b.s{background:transparent;color:#f1ecff;box-shadow:inset 0 0 0 3px #f1ecff}
+.a .tag{color:#7ee8a2}
+.a .sky{position:absolute;inset:auto 0 0 0;height:60px;background:repeating-linear-gradient(90deg,#2a2550 0 18px,#14122a 18px 22px,#3a3370 22px 40px,#14122a 40px 44px)}
+
+/* B: council notice */
+.b2{background:#efe7d6;color:#26221c;font-family:"Silkscreen",monospace;font-size:15px}
+.b2 .t{font:700 26px/1.2 "Silkscreen",monospace}
+.b2 .stamp{border:3px solid #c0392b;color:#c0392b;padding:6px 10px;transform:rotate(-4deg);font-weight:700}
+.b2 .b{font:700 14px "Silkscreen",monospace;padding:12px;background:#26221c;color:#efe7d6;box-shadow:4px 4px 0 #8a7f6a}
+.b2 .b.s{background:transparent;color:#26221c;box-shadow:inset 0 0 0 3px #26221c}
+.b2 .rule{width:100%;border-top:3px dashed #26221c}
+
+/* C: arcade crt */
+.c{background:#121212;color:#d9ffe6;font-family:"Pixelify Sans",sans-serif;font-size:18px}
+.c::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 2px,transparent 2px 4px)}
+.c .t{font:700 34px/1.1 "Pixelify Sans",sans-serif;color:#46d37a;text-shadow:3px 3px 0 #7a2fd0}
+.c .b{font:700 18px "Pixelify Sans",sans-serif;padding:12px;border:3px solid #46d37a;color:#46d37a;background:transparent}
+.c .b.s{border-color:#b46cff;color:#b46cff}
+.c .hud{position:absolute;top:12px;left:16px;right:16px;display:flex;justify-content:space-between;font-size:16px;color:#b46cff}
+.pick{display:flex;gap:var(--s1);align-items:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Empty Homes: review</h1>
+  <p>Three things for the dev handoff: map look, characters, UI style.</p>
+  <nav><a href="#map-sec">1. Map</a><a href="#sprites">2. Characters</a><a href="#ui">3. UI style</a></nav>
+</header>
+
+<section id="map-sec">
+  <div class="intro">
+    <h2>1. Pixel map</h2>
+    <p>Real OpenStreetMap streets, buildings, parks and water, drawn in our own colours with no labels, at low resolution and scaled up. Same data the game uses, so street accuracy is unchanged.</p>
+  </div>
+  <div class="mapbox">
+    <div class="controls">
+      <label>Area<select id="area">
+        <option value="-0.0553,51.5465">Hackney (Hackney Central)</option>
+        <option value="-0.0612,51.5194">Tower Hamlets (Whitechapel)</option>
+        <option value="-0.1426,51.5390">Camden (Camden Town)</option>
+        <option value="-0.1925,51.5009">Kensington and Chelsea (High St Ken)</option>
+        <option value="-0.1248,51.4995">Westminster</option>
+      </select></label>
+      <label>Pixel size<select id="px">
+        <option value="1">None (original)</option>
+        <option value="0.5">2x chunky</option>
+        <option value="0.33" selected>3x chunky</option>
+        <option value="0.25">4x chunky</option>
+      </select></label>
+      <label>Palette<select id="pal">
+        <option value="night" selected>Night (matches UI style A)</option>
+        <option value="mono">Muted greys</option>
+        <option value="paper">Paper (warm)</option>
+      </select></label>
+    </div>
+    <div id="map"></div>
+    <p>Tiles from OpenFreeMap (free, no key, no limits), data from OpenStreetMap. Credit "&copy; OpenMapTiles, Data from OpenStreetMap" must stay visible in the game.</p>
+    <h3>For the dev</h3>
+    <pre id="snippet"></pre>
+  </div>
+</section>
+
+<section id="sprites">
+  <div class="intro">
+    <h2>2. Characters</h2>
+    <p>Open-licence packs I could verify. Tick which role each pack could cover. Your picks are kept in this browser. Copy the list at the bottom for the dev. Licences were read from each pack's own page; check again before shipping.</p>
+  </div>
+  <div class="grid" id="cards"></div>
+  <div class="export">
+    <h3>Your picks</h3>
+    <pre id="out">Nothing ticked yet.</pre>
+    <button id="copy">Copy for dev</button>
+  </div>
+</section>
+
+<section id="ui">
+  <div class="intro">
+    <h2>3. UI style</h2>
+    <p>Three pixel retro directions, shown on the landing screen. Purple = vacant, green = filled, in all three. Pick one and I build all 7 screens in it.</p>
+  </div>
+  <div class="styles">
+    <div class="opt">
+      <div class="screen a">
+        <div class="t">Empty<br>Homes</div>
+        <div class="tag">A borough. 412 empty homes.<br>Fill them before they catch you.</div>
+        <div class="btns"><div class="b">Play</div><div class="b s">How it works</div></div>
+        <div class="sky"></div>
+      </div>
+      <h3>A. Night bus</h3>
+      <p>Deep indigo night, arcade heading font, readable terminal body text. Skyline strip along the bottom.</p>
+    </div>
+    <div class="opt">
+      <div class="screen b2">
+        <div class="stamp">Notice</div>
+        <div class="t">Empty Homes</div>
+        <div class="rule"></div>
+        <div>This borough has 412 homes empty for over 6 months. Report them all.</div>
+        <div class="btns"><div class="b">Play</div><div class="b s">How it works</div></div>
+      </div>
+      <h3>B. Council notice</h3>
+      <p>A pixel version of a printed council letter. Cream paper, ink, red stamp. Leans into the civic and petition side.</p>
+    </div>
+    <div class="opt">
+      <div class="screen c">
+        <div class="hud"><span>Lives 3</span><span>Score 000000</span></div>
+        <div class="t">Empty<br>Homes</div>
+        <div>412 empty homes in your borough.</div>
+        <div class="btns"><div class="b">Play</div><div class="b s">How it works</div></div>
+      </div>
+      <h3>C. Arcade screen</h3>
+      <p>Dark screen with scanlines, green and purple glow, score bar on top. The most game-like of the three.</p>
+    </div>
+  </div>
+  <p>Title "Empty Homes" and the 412 figure are placeholders.</p>
+</section>
+</div>
+
+<script>
+/* ---------- map ---------- */
+let map;
+function build(){
+  const px=parseFloat(document.getElementById('px').value);
+  const center=document.getElementById('area').value.split(',').map(Number);
+  const zoom = map ? map.getZoom() : 16;
+  if(map) map.remove();
+  map=new maplibregl.Map({ container:'map', pixelRatio:px, center, zoom, style:makePixelMapStyle(document.getElementById('pal').value) });
+  writeSnippet();
+}
+function writeSnippet(){
+  const px=document.getElementById('px').value, pal=document.getElementById('pal').value;
+  document.getElementById('snippet').textContent=
+`// 1) copy handoff/pixel-map-style.js into src/map/ (rename .ts if you like)
+// 2) src/map/mapController.ts: replace TILE_STYLE in new maplibregl.Map({...}) with
+style: makePixelMapStyle('${pal}'),
+pixelRatio: ${px},
+
+/* 3) src/style.css */
+.maplibregl-canvas { image-rendering: pixelated; }`;
+}
+document.getElementById('px').onchange=build;
+document.getElementById('pal').onchange=()=>{ map.setStyle(makePixelMapStyle(document.getElementById('pal').value)); writeSnippet(); };
+document.getElementById('area').onchange=()=>{ map.jumpTo({center:document.getElementById('area').value.split(',').map(Number)}); };
+build();
+
+/* ---------- sprites ---------- */
+const PACKS=[
+ {id:'metrocity',name:'MetroCity Free Top Down Character Pack',by:'JIK-A-4',url:'https://jik-a-4.itch.io/metrocity-free-topdown-character-pack',img:'https://img.itch.zone/aW1nLzE0NDA5MjkxLnBuZw==/original/MFDBCb.png',lic:'CC0',meta:'Modern city people. 3 bodies, swappable hair and outfits, suits in v2. 4-way running. Size not stated. Author notes hair has no side/back frames.',fit:'Best theme fit for all roles'},
+ {id:'piano',name:'Top-Down Character Sprites',by:'piano_no_renshu',url:'https://piano-no-renshu.itch.io/top-down-character-sprites',img:'',lic:'CC0',meta:'15 characters, 16/24px, 4-way walk, 10-colour Mega Drive palette.',fit:'Generic, small and consistent cast'},
+ {id:'bumblebee',name:'8 Direction Walk Cycle',by:'Ordinary Bumblebee',url:'https://ordinary-bumblebee.itch.io/8-direction-walk-cycle',img:'https://img.itch.zone/aW1nLzEyODI0NjkxLnBuZw==/original/POvJZ6.png',lic:'CC0',meta:'One character, 32x48, 8-way walk, 10 colour variants.',fit:'Player'},
+ {id:'lpc',name:'Universal LPC Character Generator',by:'Liberated Pixel Cup contributors',url:'https://liberatedpixelcup.github.io/Universal-LPC-Spritesheet-Character-Generator/',img:'',lic:'Mixed: CC0 / CC-BY / CC-BY-SA / OGA-BY / GPL per part',warn:true,meta:'Build your own character from parts (suits, elderly bodies, hair). 64x64, walk cycles. Credit list required for non-CC0 parts.',fit:'Any role, most flexible'},
+ {id:'kenney-urban',name:'RPG Urban Kit',by:'Kenney',url:'https://kenney-assets.itch.io/rpg-urban-kit',img:'',lic:'Not verified yet',warn:true,meta:'480+ sprites, modern city. Kenney is usually CC0 but I did not read this page.',fit:'Possible modern-city fit'},
+ {id:'oldhero',name:'Old hero Pixel Art character',by:'Atari Boy',url:'https://atari-boy.itch.io/oldherocharacter',img:'https://img.itch.zone/aW1hZ2UvMjEyMTA1My8xMjQ5MDgxOC5naWY=/original/lVtV0d.gif',lic:'CC0',meta:'Bearded old man, side view only (platformer), not top-down.',fit:'Old resident, weak fit'},
+ {id:'melee',name:'Free 8-Directional Melee Character',by:'Hormelz',url:'https://hormelz.itch.io/8-directional-melee-character',img:'https://img.itch.zone/aW1nLzIzMTE3MjYxLmdpZg==/original/MTCPFN.gif',lic:'CC0',meta:'8-way, walk plus 38 fighting animations. Large canvas.',fit:'Player, weak fit'},
+ {id:'knight',name:'8 Directional Knight Character',by:'Hormelz',url:'https://hormelz.itch.io/8-directional-knight',img:'https://img.itch.zone/aW1nLzEzNjUzMDYwLmdpZg==/original/tyYUaG.gif',lic:'CC0',meta:'Fantasy knight, 8-way walk, 256x256 canvas. Would need reskin.',fit:'Generic'},
+ {id:'tinydungeon',name:'Tiny Dungeon',by:'Kenney',url:'https://kenney-assets.itch.io/tiny-dungeon',img:'https://img.itch.zone/aW1hZ2UvMTYwMzc5My85MzgzMTY1LnBuZw==/347x500/dFLg%2Fs.png',lic:'CC0',meta:'130+ tiny fantasy sprites, no walk frames stated.',fit:'Generic, poor theme fit'},
+ {id:'debts',name:'Debts in the Depths',by:'Reaktori',url:'https://reaktori.itch.io/debts-in-the-depths-asset-pack',img:'https://img.itch.zone/aW1nLzIwNjAxNTY4LnBuZw==/original/bY0Ien.png',lic:'CC0',meta:'24 dungeon creatures with 4-frame walks.',fit:'Enemies, fantasy'}
+];
+const ROLES=['Player','Politician','Landlord','NIMBY'];
+let picks={};
+try{picks=JSON.parse(localStorage.getItem('eh-picks')||'{}')}catch(e){picks={}}
+function save(){try{localStorage.setItem('eh-picks',JSON.stringify(picks))}catch(e){}}
+const cards=document.getElementById('cards');
+PACKS.forEach(p=>{
+  const c=document.createElement('div');c.className='card';c.dataset.id=p.id;
+  c.innerHTML=`<div class="thumb">${p.img?`<img loading="lazy" src="${p.img}" alt="${p.name} preview">`:'<span>No preview I could verify. Open the page.</span>'}</div>
+  <div class="body"><h3>${p.name}</h3><div class="meta">by ${p.by}</div>
+  <div><span class="lic${p.warn?' warn':''}">${p.lic}</span></div>
+  <div class="meta">${p.meta}</div><div class="meta">Suits: ${p.fit}</div>
+  <div class="roles">${ROLES.map(r=>`<label><input type="checkbox" data-r="${r}">${r}</label>`).join('')}</div>
+  <a href="${p.url}" target="_blank" rel="noopener">Open pack page</a></div>`;
+  c.querySelectorAll('input').forEach(i=>{
+    i.checked=(picks[p.id]||[]).includes(i.dataset.r);
+    i.onchange=()=>{picks[p.id]=[...c.querySelectorAll('input:checked')].map(x=>x.dataset.r);if(!picks[p.id].length)delete picks[p.id];save();render();};
+  });
+  cards.appendChild(c);
+});
+function render(){
+  document.querySelectorAll('.card').forEach(c=>c.classList.toggle('picked',!!picks[c.dataset.id]));
+  const byRole=ROLES.map(r=>{
+    const ps=PACKS.filter(p=>(picks[p.id]||[]).includes(r));
+    return `${r}:\n`+(ps.length?ps.map(p=>`  - ${p.name} (${p.lic}) ${p.url}`).join('\n'):'  - none yet');
+  }).join('\n\n');
+  document.getElementById('out').textContent=Object.keys(picks).length?byRole:'Nothing ticked yet.';
+}
+render();
+document.getElementById('copy').onclick=()=>{navigator.clipboard.writeText(document.getElementById('out').textContent).then(()=>{document.getElementById('copy').textContent='Copied';setTimeout(()=>document.getElementById('copy').textContent='Copy for dev',1200)})};
+</script>
+</body>
+</html>
