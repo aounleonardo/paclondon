@@ -1,8 +1,32 @@
-import type { GeoPoint, Pellet, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, Viewport } from '../types'
+import type { Bounds, GeoPoint, House, Pellet, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, Viewport } from '../types'
 
 interface GenerateOptions {
   pelletDensity?: number
 }
+
+interface RawHouseSeed {
+  id: string
+  lat: number
+  lng: number
+  isVacant: boolean
+  address?: string
+}
+
+/** Hard-coded test houses around central London. Filtered by map bounds at generate time. */
+const TEST_HOUSES: RawHouseSeed[] = [
+  { id: 'H1', lat: 51.5074, lng: -0.1278, isVacant: true, address: '123 High Street' },
+  { id: 'H2', lat: 51.5081, lng: -0.1282, isVacant: false, address: '45 Occupied Road' },
+  { id: 'H3', lat: 51.5069, lng: -0.1290, isVacant: true, address: '7 Vacant Lane' },
+  { id: 'H4', lat: 51.5078, lng: -0.1265, isVacant: true, address: '18 Empty Court' },
+  { id: 'H5', lat: 51.5065, lng: -0.1272, isVacant: false, address: '9 Lived-In Mews' },
+  { id: 'H6', lat: 51.5085, lng: -0.1270, isVacant: true, address: '2 Quiet Place' },
+  { id: 'H7', lat: 51.5070, lng: -0.1260, isVacant: false, address: '55 Busy Avenue' },
+  { id: 'H8', lat: 51.5088, lng: -0.1295, isVacant: true, address: '11 Dark Alley' },
+  { id: 'H9', lat: 51.5062, lng: -0.1288, isVacant: true, address: '30 Forsaken Row' },
+  { id: 'H10', lat: 51.5076, lng: -0.1300, isVacant: false, address: '8 Full House Way' },
+  { id: 'H11', lat: 51.5090, lng: -0.1268, isVacant: true, address: '4 Silent Terrace' },
+  { id: 'H12', lat: 51.5060, lng: -0.1262, isVacant: false, address: '21 Neighbour Street' },
+]
 
 const MIN_NODE_COUNT = 12
 const MIN_EDGE_COUNT = 14
@@ -414,6 +438,200 @@ function buildPellets(
   }
 }
 
+function pointInBounds(point: GeoPoint, bounds: Bounds): boolean {
+  return point.lat <= bounds.north
+    && point.lat >= bounds.south
+    && point.lng <= bounds.east
+    && point.lng >= bounds.west
+}
+
+function closestPointOnEdge(
+  point: GeoPoint,
+  from: RoadGraphNode,
+  to: RoadGraphNode,
+): { point: GeoPoint; progress: number; distance: number } {
+  const latScale = 111_320
+  const lngScale = Math.cos(((from.lat + to.lat) / 2) * Math.PI / 180) * latScale
+  const ax = from.lng * lngScale
+  const ay = from.lat * latScale
+  const bx = to.lng * lngScale
+  const by = to.lat * latScale
+  const px = point.lng * lngScale
+  const py = point.lat * latScale
+  const abx = bx - ax
+  const aby = by - ay
+  const lengthSq = abx * abx + aby * aby
+  const progress = lengthSq === 0
+    ? 0
+    : Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / lengthSq))
+  const snapped = interpolate(from, to, progress)
+  return {
+    point: snapped,
+    progress,
+    distance: distanceMeters(point, snapped),
+  }
+}
+
+function snapToNearestEdge(
+  point: GeoPoint,
+  nodes: RoadGraphNode[],
+  edges: RoadGraphEdge[],
+): { point: GeoPoint; edgeId: string; progress: number } | null {
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]))
+  let best: { point: GeoPoint; edgeId: string; progress: number; distance: number } | null = null
+
+  for (const edge of edges) {
+    const from = nodeMap.get(edge.from)
+    const to = nodeMap.get(edge.to)
+    if (!from || !to || edge.length < 8) {
+      continue
+    }
+    const candidate = closestPointOnEdge(point, from, to)
+    if (!best || candidate.distance < best.distance) {
+      best = {
+        point: candidate.point,
+        edgeId: edge.id,
+        progress: candidate.progress,
+        distance: candidate.distance,
+      }
+    }
+  }
+
+  if (!best) {
+    return null
+  }
+  return {
+    point: best.point,
+    edgeId: best.edgeId,
+    progress: best.progress,
+  }
+}
+
+function createHouseFromSeed(
+  seed: RawHouseSeed,
+  nodes: RoadGraphNode[],
+  edges: RoadGraphEdge[],
+): House | null {
+  const snapped = snapToNearestEdge({ lat: seed.lat, lng: seed.lng }, nodes, edges)
+  if (!snapped) {
+    return null
+  }
+  return {
+    id: seed.id,
+    lat: snapped.point.lat,
+    lng: snapped.point.lng,
+    isVacant: seed.isVacant,
+    checked: false,
+    claimed: false,
+    state: 'unknown',
+    edgeId: snapped.edgeId,
+    progress: 0,
+    address: seed.address,
+  }
+}
+
+function proceduralHouseSeeds(center: GeoPoint, count: number): RawHouseSeed[] {
+  const seeds: RawHouseSeed[] = []
+  // Rough ~40–90m offsets around the viewport center so any city works.
+  const offsets = [
+    { dLat: 0.00045, dLng: -0.00055, vacant: true },
+    { dLat: 0.00070, dLng: 0.00035, vacant: false },
+    { dLat: -0.00055, dLng: -0.00040, vacant: true },
+    { dLat: -0.00025, dLng: 0.00075, vacant: true },
+    { dLat: 0.00020, dLng: 0.00090, vacant: false },
+    { dLat: -0.00080, dLng: 0.00020, vacant: true },
+    { dLat: 0.00090, dLng: -0.00020, vacant: false },
+    { dLat: -0.00010, dLng: -0.00095, vacant: true },
+    { dLat: 0.00055, dLng: 0.00060, vacant: true },
+    { dLat: -0.00065, dLng: -0.00070, vacant: false },
+    { dLat: 0.00015, dLng: -0.00030, vacant: true },
+    { dLat: -0.00040, dLng: 0.00045, vacant: false },
+  ]
+
+  for (let index = 0; index < Math.min(count, offsets.length); index += 1) {
+    const offset = offsets[index]
+    seeds.push({
+      id: `P${index + 1}`,
+      lat: center.lat + offset.dLat,
+      lng: center.lng + offset.dLng,
+      isVacant: offset.vacant,
+      address: `Suspicious house #${index + 1}`,
+    })
+  }
+  return seeds
+}
+
+function placeHousesOnRoads(
+  bounds: Bounds,
+  center: GeoPoint,
+  nodes: RoadGraphNode[],
+  edges: RoadGraphEdge[],
+): House[] {
+  const inBounds = TEST_HOUSES.filter((house) => pointInBounds(house, bounds))
+  const seeds = inBounds.length >= 4
+    ? inBounds
+    : proceduralHouseSeeds(center, 12)
+
+  const houses: House[] = []
+  const usedEdgeSlots = new Set<string>()
+
+  for (const seed of seeds) {
+    const house = createHouseFromSeed(seed, nodes, edges)
+    if (!house || !house.edgeId) {
+      continue
+    }
+    const slotKey = `${house.edgeId}:${house.progress.toFixed(2)}`
+    if (usedEdgeSlots.has(slotKey)) {
+      continue
+    }
+    // Keep houses spaced so they are not stacked on the same spot.
+    const tooClose = houses.some((existing) => distanceMeters(existing, house) < 28)
+    if (tooClose) {
+      continue
+    }
+    usedEdgeSlots.add(slotKey)
+    houses.push(house)
+  }
+
+  // Fallback: drop houses mid-edge if snapping filtered everything out.
+  if (houses.length < 4) {
+    const nodeMap = new Map(nodes.map((node) => [node.id, node]))
+    const playableEdges = edges.filter((edge) => edge.length >= 25)
+    let index = 0
+    for (const edge of playableEdges) {
+      if (houses.length >= 10) {
+        break
+      }
+      const from = nodeMap.get(edge.from)
+      const to = nodeMap.get(edge.to)
+      if (!from || !to) {
+        continue
+      }
+      const progress = 0.35 + ((index % 3) * 0.15)
+      const point = interpolate(from, to, progress)
+      if (houses.some((existing) => distanceMeters(existing, point) < 28)) {
+        index += 1
+        continue
+      }
+      houses.push({
+        id: `E${index + 1}`,
+        lat: point.lat,
+        lng: point.lng,
+        isVacant: index % 3 !== 1,
+        checked: false,
+        claimed: false,
+        state: 'unknown',
+        edgeId: edge.id,
+        progress: 0,
+        address: `Road house #${index + 1}`,
+      })
+      index += 1
+    }
+  }
+
+  return houses
+}
+
 function prepareRoadNetwork(viewport: Viewport, roadData: RoadData): { roadData: RoadData; sourceMode: SourceMode } {
   const component = largestComponent(roadData)
   if (component.nodes.length < MIN_NODE_COUNT || component.edges.length < MIN_EDGE_COUNT) {
@@ -439,7 +657,8 @@ export function generatePlayableMap(viewport: Viewport, roadData: RoadData, opti
   const center = viewport.center
   const ghostHomeNodeIds = chooseGhostHomes(nodes, center)
   const spawnNode = chooseSpawnNode(nodes, center, ghostHomeNodeIds)
-  const { pellets, powerPellets } = buildPellets(
+  // Houses are the primary objective; keep a few power pellets for classic power-ups.
+  const { powerPellets } = buildPellets(
     nodes,
     prepared.roadData.edges,
     spawnNode.id,
@@ -447,14 +666,16 @@ export function generatePlayableMap(viewport: Viewport, roadData: RoadData, opti
     center,
     options.pelletDensity ?? 1,
   )
+  const houses = placeHousesOnRoads(viewport.bounds, center, nodes, prepared.roadData.edges)
 
   return {
     bounds: viewport.bounds,
     center,
     nodes,
     edges: prepared.roadData.edges,
-    pellets,
+    pellets: [],
     powerPellets,
+    houses,
     spawnNodeId: spawnNode.id,
     ghostHomeNodeIds,
     sourceMode: prepared.sourceMode,

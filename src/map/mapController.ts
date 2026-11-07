@@ -27,8 +27,8 @@ export class MapController {
     this.map = new maplibregl.Map({
       container,
       style: TILE_STYLE,
-      center: [-73.9855, 40.758],
-      zoom: 15,
+      center: [-0.1278, 51.5074],
+      zoom: 17,
     })
 
     this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), 'top-right')

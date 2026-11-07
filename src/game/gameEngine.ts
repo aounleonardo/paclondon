@@ -1,4 +1,4 @@
-import type { BonusFruit, BonusFruitType, Direction, EntityState, EntityTravel, FloatingScore, GameEvent, GameState, GeoPoint, GhostMode, GhostState, PlayableMap, RoadGraphEdge, RoadGraphNode, VisualEffect } from '../types'
+import type { BonusFruit, BonusFruitType, Direction, EntityState, EntityTravel, FloatingScore, GameEvent, GameState, GeoPoint, GhostMode, GhostState, House, PlayableMap, RoadGraphEdge, RoadGraphNode, VisualEffect } from '../types'
 
 const PACMAN_SPEED = 42
 const GHOST_SPEED = 35
@@ -19,6 +19,13 @@ const EXTRA_LIFE_SCORE_INTERVAL = 5_000
 const FRUIT_TRIGGER_PROGRESS = [0.29, 0.7]
 const GHOST_MEMORY_SIZE = 6
 const GHOST_COLORS = ['#ff595e', '#00bbf9', '#ffca3a', '#90be6d']
+const CHECK_DURATION_MS = 3_000
+const CLAIM_DURATION_MS = 10_000
+const HOUSE_RADIUS_METERS = 18
+const OCCUPIED_SLOW_DURATION_MS = 6_000
+const OCCUPIED_SPEED_MULTIPLIER = 0.55
+const CHECK_SCORE = 25
+const CLAIM_SCORE = 100
 const BONUS_FRUITS: Array<{ kind: BonusFruitType; score: number }> = [
   { kind: 'cherry', score: 100 },
   { kind: 'strawberry', score: 200 },
@@ -162,6 +169,8 @@ export class GameEngine {
   private totalPelletsAtLevelStart = 0
   private fruitTriggerIndex = 0
   private extraLivesAwarded = 0
+  private occupiedSlowUntil = 0
+  private houses: House[] = []
 
   public constructor(map: PlayableMap) {
     this.map = map
@@ -175,6 +184,7 @@ export class GameEngine {
     }
     this.scatterTargetIds = this.buildScatterTargets()
     this.seedPellets()
+    this.seedHouses()
     this.totalPelletsAtLevelStart = this.pellets.size
     this.state = this.createInitialState()
   }
@@ -184,6 +194,15 @@ export class GameEngine {
     for (const pellet of [...this.map.pellets, ...this.map.powerPellets]) {
       this.pellets.set(pellet.id, pellet)
     }
+  }
+
+  private seedHouses(): void {
+    this.houses = (this.map.houses ?? []).map((house) => ({ ...house, progress: 0 }))
+    this.occupiedSlowUntil = 0
+  }
+
+  private countRemainingVacantHouses(): number {
+    return this.houses.filter((house) => house.isVacant && !house.claimed).length
   }
 
   private createInitialState(): GameState {
@@ -196,6 +215,8 @@ export class GameEngine {
       pacman: createEntity(spawnNode, 'right'),
       ghosts: this.buildGhosts(),
       remainingPellets: this.map.pellets.length + this.map.powerPellets.length,
+      remainingVacantHouses: this.countRemainingVacantHouses(),
+      currentHouseAction: null,
       frightenedUntil: 0,
       floatingScores: [],
       visualEffects: [],
@@ -295,6 +316,7 @@ export class GameEngine {
 
   public restart(): void {
     this.seedPellets()
+    this.seedHouses()
     this.state = this.createInitialState()
     this.lastTimestamp = 0
     this.spawnProtectedUntil = 0
@@ -682,23 +704,140 @@ export class GameEngine {
     for (const pelletId of consumed) {
       this.pellets.delete(pelletId)
     }
-
-    if (this.state.remainingPellets <= 0 && this.state.status === 'playing') {
-      this.state.status = 'win'
-      this.pushEvent('win')
-    }
   }
 
   private addFloatingScore(amount: number, position: GeoPoint, timestamp: number): void {
+    this.addFloatingText(String(amount), position, timestamp)
+  }
+
+  private addFloatingText(text: string, position: GeoPoint, timestamp: number): void {
     const floatingScore: FloatingScore = {
-      id: `score:${timestamp}:${amount}:${Math.random().toString(36).slice(2, 7)}`,
-      text: String(amount),
+      id: `score:${timestamp}:${text}:${Math.random().toString(36).slice(2, 7)}`,
+      text,
       lng: position.lng,
       lat: position.lat,
       createdAt: timestamp,
       expiresAt: timestamp + FLOATING_SCORE_DURATION_MS,
     }
     this.state.floatingScores.push(floatingScore)
+  }
+
+  private cancelHouseAction(): void {
+    if (this.state.currentHouseAction) {
+      const house = this.houses.find((item) => item.id === this.state.currentHouseAction?.houseId)
+      if (house) {
+        house.progress = 0
+      }
+    }
+    this.state.currentHouseAction = null
+  }
+
+  private findClosestHouseInRange(): House | null {
+    const pacman = this.state.pacman.position
+    let best: House | null = null
+    let bestDistance = HOUSE_RADIUS_METERS
+
+    for (const house of this.houses) {
+      if (house.claimed || house.state === 'occupied') {
+        continue
+      }
+      const gap = distanceMeters(pacman, house)
+      if (gap <= bestDistance) {
+        bestDistance = gap
+        best = house
+      }
+    }
+    return best
+  }
+
+  private completeCheck(house: House, timestamp: number): void {
+    house.checked = true
+    house.progress = 0
+    this.state.currentHouseAction = null
+
+    if (house.isVacant) {
+      house.state = 'vacant'
+      this.state.score += CHECK_SCORE
+      this.awardExtraLifeIfEligible()
+      this.addFloatingText('Empty!', house, timestamp)
+    } else {
+      house.state = 'occupied'
+      this.occupiedSlowUntil = timestamp + OCCUPIED_SLOW_DURATION_MS
+      this.addFloatingText('Occupied!', house, timestamp)
+    }
+  }
+
+  private completeClaim(house: House, timestamp: number): void {
+    if (!house.isVacant || house.claimed) {
+      this.state.currentHouseAction = null
+      house.progress = 0
+      return
+    }
+
+    house.claimed = true
+    house.progress = 0
+    house.state = 'vacant'
+    this.state.currentHouseAction = null
+    this.state.remainingVacantHouses = this.countRemainingVacantHouses()
+    this.state.score += CLAIM_SCORE
+    this.awardExtraLifeIfEligible()
+    this.addFloatingText('Freed!', house, timestamp)
+
+    if (this.state.remainingVacantHouses <= 0 && this.state.status === 'playing') {
+      this.state.status = 'win'
+      this.pushEvent('win')
+    }
+  }
+
+  private updateHouseInteraction(deltaMs: number, timestamp: number): void {
+    if (this.state.status !== 'playing') {
+      return
+    }
+
+    const house = this.findClosestHouseInRange()
+    if (!house) {
+      this.cancelHouseAction()
+      return
+    }
+
+    if (this.state.currentHouseAction && this.state.currentHouseAction.houseId !== house.id) {
+      this.cancelHouseAction()
+    }
+
+    let actionType: 'check' | 'claim' | null = null
+    if (house.state === 'unknown') {
+      actionType = 'check'
+    } else if (house.state === 'vacant' && !house.claimed) {
+      actionType = 'claim'
+    }
+
+    if (!actionType) {
+      this.cancelHouseAction()
+      return
+    }
+
+    const duration = actionType === 'check' ? CHECK_DURATION_MS : CLAIM_DURATION_MS
+    if (!this.state.currentHouseAction) {
+      this.state.currentHouseAction = {
+        houseId: house.id,
+        type: actionType,
+        progress: 0,
+        startedAt: timestamp,
+      }
+      this.addFloatingText(actionType === 'check' ? 'Checking…' : 'Claiming…', house, timestamp)
+    }
+
+    const action = this.state.currentHouseAction
+    action.progress = Math.min(1, action.progress + (deltaMs / duration))
+    house.progress = action.progress
+
+    if (action.progress >= 1) {
+      if (action.type === 'check') {
+        this.completeCheck(house, timestamp)
+      } else {
+        this.completeClaim(house, timestamp)
+      }
+    }
   }
 
   private addVisualEffect(type: VisualEffect['type'], position: GeoPoint, timestamp: number, duration: number): void {
@@ -863,6 +1002,7 @@ export class GameEngine {
           lng: this.state.pacman.position.lng,
           lat: this.state.pacman.position.lat,
         }
+        this.cancelHouseAction()
         this.state.lives -= 1
         this.addVisualEffect('death', deathPosition, timestamp, DEATH_ANIMATION_MS)
         this.pushEvent(this.state.lives <= 0 ? 'gameover' : 'lose-life')
@@ -896,16 +1036,18 @@ export class GameEngine {
 
     const pacmanBefore = this.snapshotEntity(this.state.pacman)
     const ghostsBefore = this.state.ghosts.map((ghost) => this.snapshotEntity(ghost))
-    const delta = Math.min(80, timestamp - this.lastTimestamp)
+    const delta = Math.max(0, Math.min(80, timestamp - this.lastTimestamp))
     this.lastTimestamp = timestamp
     const frightened = timestamp < this.state.frightenedUntil
     if (!frightened) {
       this.frightenedGhostChain = 0
     }
     this.recoverGhostsAtHome()
-    const pacmanDistance = PACMAN_SPEED * this.speedMultiplier * (delta / 1000)
+    const occupiedSlow = timestamp < this.occupiedSlowUntil ? OCCUPIED_SPEED_MULTIPLIER : 1
+    const pacmanDistance = PACMAN_SPEED * this.speedMultiplier * occupiedSlow * (delta / 1000)
     this.moveTraveler(this.state.pacman, pacmanDistance)
     this.consumePellets()
+    this.updateHouseInteraction(delta, timestamp)
     this.maybeSpawnBonusFruitFromProgress(timestamp)
     this.consumeBonusFruit(timestamp)
 
@@ -937,6 +1079,10 @@ export class GameEngine {
     }
 
     return { pellets, powerPellets }
+  }
+
+  public getHouses(): House[] {
+    return this.houses
   }
 
   public getBonusFruit(): BonusFruit | null {

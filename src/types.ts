@@ -53,6 +53,26 @@ export interface Pellet extends GeoPoint {
   power: boolean
 }
 
+export type HouseState = 'unknown' | 'vacant' | 'occupied'
+
+export interface House extends GeoPoint {
+  id: string
+  isVacant: boolean
+  checked: boolean
+  claimed: boolean
+  state: HouseState
+  edgeId?: string
+  progress: number
+  address?: string
+}
+
+export interface HouseAction {
+  houseId: string
+  type: 'check' | 'claim'
+  progress: number
+  startedAt: number
+}
+
 export type BonusFruitType = 'cherry' | 'strawberry' | 'orange' | 'apple'
 
 export interface BonusFruit extends GeoPoint {
@@ -70,6 +90,7 @@ export interface PlayableMap {
   edges: RoadGraphEdge[]
   pellets: Pellet[]
   powerPellets: Pellet[]
+  houses: House[]
   spawnNodeId: string
   ghostHomeNodeIds: string[]
   sourceMode: SourceMode
@@ -112,6 +133,8 @@ export interface GameState {
   pacman: EntityState
   ghosts: GhostState[]
   remainingPellets: number
+  remainingVacantHouses: number
+  currentHouseAction: HouseAction | null
   frightenedUntil: number
   floatingScores: FloatingScore[]
   visualEffects: VisualEffect[]

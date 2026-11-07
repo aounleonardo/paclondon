@@ -1,5 +1,12 @@
 import type { GameEngine } from '../game/gameEngine'
-import type { BonusFruit, Direction, GeoPoint, GhostMode, PlayableMap, ScreenPoint, VisualEffect } from '../types'
+import type { BonusFruit, Direction, GeoPoint, GhostMode, House, PlayableMap, ScreenPoint, VisualEffect } from '../types'
+
+const HOUSE_COLORS: Record<string, string> = {
+  unknown: '#888888',
+  vacant: '#ffca3a',
+  occupied: '#ff595e',
+  claimed: '#90be6d',
+}
 
 const PACMAN_GLOW_RADIUS = 30
 const PACMAN_BODY_RADIUS = 20
@@ -153,6 +160,7 @@ export class CanvasRenderer {
     this.context.drawImage(this.roadLayer.canvas, 0, 0, width, height)
     this.context.drawImage(this.pelletLayer.canvas, 0, 0, width, height)
     this.drawPowerPellets(map.powerPellets, project)
+    this.drawHouses(map.houses ?? [], null, project)
     this.drawSpawn(map, project)
   }
 
@@ -166,6 +174,7 @@ export class CanvasRenderer {
     this.context.drawImage(this.roadLayer.canvas, 0, 0, width, height)
     this.context.drawImage(this.pelletLayer.canvas, 0, 0, width, height)
     this.drawPowerPellets(pellets.powerPellets, project)
+    this.drawHouses(engine.getHouses(), engine.state.currentHouseAction?.houseId ?? null, project)
     this.drawBonusFruit(engine.getBonusFruit(), project)
     if (engine.state.status !== 'dying') {
       this.drawPacman(engine.state.pacman.position, engine.state.pacman.pendingDirection, project)
@@ -181,6 +190,71 @@ export class CanvasRenderer {
     }
     this.drawVisualEffects(engine.state.visualEffects, project)
     this.drawFloatingScores(engine.state.floatingScores, project)
+  }
+
+  private houseFillColor(house: House): string {
+    if (house.claimed) {
+      return HOUSE_COLORS.claimed
+    }
+    return HOUSE_COLORS[house.state] ?? HOUSE_COLORS.unknown
+  }
+
+  private drawHouses(
+    houses: House[],
+    activeHouseId: string | null,
+    project: (point: GeoPoint) => ScreenPoint,
+  ): void {
+    const pulse = 0.85 + ((Math.sin(performance.now() * 0.008) + 1) * 0.15)
+
+    for (const house of houses) {
+      const screen = project(house)
+      const color = this.houseFillColor(house)
+      const radius = house.state === 'unknown' ? 10 * pulse : 11
+
+      this.context.save()
+      this.context.fillStyle = 'rgba(0, 0, 0, 0.28)'
+      this.context.beginPath()
+      this.context.arc(screen.x, screen.y + 1, radius + 3, 0, Math.PI * 2)
+      this.context.fill()
+
+      this.context.fillStyle = color
+      this.context.shadowColor = color
+      this.context.shadowBlur = house.state === 'unknown' ? 14 : 10
+      this.context.beginPath()
+      this.context.arc(screen.x, screen.y, radius, 0, Math.PI * 2)
+      this.context.fill()
+
+      this.context.shadowBlur = 0
+      this.context.strokeStyle = 'rgba(255, 255, 255, 0.85)'
+      this.context.lineWidth = 2
+      this.context.beginPath()
+      this.context.arc(screen.x, screen.y, radius, 0, Math.PI * 2)
+      this.context.stroke()
+
+      if (house.state === 'unknown' && !house.checked) {
+        this.context.fillStyle = '#ffffff'
+        this.context.font = 'bold 12px "Segoe UI", sans-serif'
+        this.context.textAlign = 'center'
+        this.context.textBaseline = 'middle'
+        this.context.fillText('?', screen.x, screen.y + 0.5)
+      }
+
+      if (activeHouseId === house.id && house.progress > 0) {
+        this.context.strokeStyle = 'rgba(255, 255, 255, 0.95)'
+        this.context.lineWidth = 3.5
+        this.context.beginPath()
+        this.context.arc(
+          screen.x,
+          screen.y,
+          radius + 6,
+          -Math.PI / 2,
+          -Math.PI / 2 + (Math.PI * 2 * house.progress),
+        )
+        this.context.stroke()
+      }
+
+      this.context.restore()
+    }
   }
 
   private drawRoads(

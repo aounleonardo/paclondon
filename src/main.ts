@@ -75,11 +75,13 @@ app.innerHTML = `
       <div class="stats">
         <div><span id="score-label"></span><strong id="score-value">0</strong></div>
         <div><span id="lives-label"></span><div id="lives-value" class="life-icons"></div></div>
+        <div><span id="vacant-label"></span><strong id="vacant-value">—</strong></div>
         <div><span id="status-label"></span><strong id="status-value">Idle</strong></div>
       </div>
 
       <div class="tips">
         <p id="tip-controls"></p>
+        <p id="tip-houses"></p>
         <p id="tip-generate"></p>
       </div>
       <div class="debug-line">
@@ -128,10 +130,13 @@ const scoreValue = requireElement<HTMLElement>('#score-value')
 const scoreLabelNode = requireElement<HTMLElement>('#score-label')
 const livesValue = requireElement<HTMLElement>('#lives-value')
 const livesLabelNode = requireElement<HTMLElement>('#lives-label')
+const vacantValue = requireElement<HTMLElement>('#vacant-value')
+const vacantLabelNode = requireElement<HTMLElement>('#vacant-label')
 const statusValue = requireElement<HTMLElement>('#status-value')
 const statusLabelNode = requireElement<HTMLElement>('#status-label')
 const modeValue = requireElement<HTMLElement>('#mode-value')
 const tipControls = requireElement<HTMLElement>('#tip-controls')
+const tipHouses = requireElement<HTMLElement>('#tip-houses')
 const tipGenerate = requireElement<HTMLElement>('#tip-generate')
 const loadingIndicator = requireElement<HTMLDivElement>('#loading-indicator')
 const loadingText = requireElement<HTMLDivElement>('#loading-text')
@@ -283,8 +288,10 @@ function renderLocale(): void {
   setText(modeLabelNode, t('stats.mode'))
   setText(scoreLabelNode, t('stats.score'))
   setText(livesLabelNode, t('stats.lives'))
+  setText(vacantLabelNode, t('stats.vacant'))
   setText(statusLabelNode, t('stats.status'))
   setText(tipControls, t('tips.controls'))
+  setText(tipHouses, t('tips.houses'))
   setHtml(tipGenerate, t('tips.generate'))
   updateGenerateButtonHint()
   if (currentMessage.key === 'message.initial' || currentMessage.key.startsWith('message.viewport') || currentMessage.key === 'message.moved') {
@@ -339,6 +346,10 @@ function syncHud(): void {
   if (!engine) {
     setText(scoreValue, '0')
     renderLives(3)
+    const vacantPreview = playableMap
+      ? String(playableMap.houses.filter((house) => house.isVacant && !house.claimed).length)
+      : '—'
+    setText(vacantValue, vacantPreview)
     setText(statusValue, playableMap ? statusLabel(currentLocale, 'preview') : statusLabel(currentLocale, 'idle'))
     setText(modeValue, modeLabel(currentLocale, playableMap?.sourceMode ?? 'idle'))
     return
@@ -346,6 +357,7 @@ function syncHud(): void {
 
   setText(scoreValue, String(engine.state.score))
   renderLives(engine.state.lives)
+  setText(vacantValue, String(engine.state.remainingVacantHouses))
   setText(statusValue, statusLabel(currentLocale, engine.state.status))
   setText(modeValue, modeLabel(currentLocale, engine.map.sourceMode))
 
@@ -359,6 +371,11 @@ function syncHud(): void {
     setMessageKey('message.paused')
   } else if (engine.state.status === 'preview') {
     setMessageKey('message.preview')
+  } else if (engine.state.currentHouseAction) {
+    setMessageKey(
+      engine.state.currentHouseAction.type === 'check' ? 'message.checking' : 'message.claiming',
+      { progress: Math.round(engine.state.currentHouseAction.progress * 100) },
+    )
   } else {
     setMessageKey('message.playing')
   }
