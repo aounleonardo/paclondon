@@ -3,9 +3,10 @@ import { MAX_HOUSE_DISTANCE_FROM_ROAD_METERS } from '../generator/filterReachabl
 import type { BonusFruit, BonusFruitType, Direction, EntityState, EntityTravel, FloatingScore, GameEvent, GameState, GeoPoint, GhostMode, GhostState, PlayableMap, RoadGraphEdge, RoadGraphNode, VacantProperty, VisualEffect } from '../types'
 
 const PACMAN_SPEED = 42
-const GHOST_SPEED = 35
-const FRIGHTENED_SPEED = 26
-const EYES_SPEED = 84
+/** Ghosts move at (1 − deficit) × player speed; default 5% slower. */
+export const DEFAULT_GHOST_PACE_DEFICIT = 0.05
+const FRIGHTENED_PACE_RATIO = 26 / 35
+const EYES_PACE_RATIO = 84 / 35
 const POWER_DURATION_MS = 8_000
 const COLLISION_DISTANCE_METERS = 10
 const PELLET_COLLISION_DISTANCE_METERS = 7
@@ -145,6 +146,7 @@ export class GameEngine {
   private spawnProtectedUntil = 0
   private ghostsReleasedAt = 0
   private speedMultiplier = 1
+  private ghostPaceDeficit = DEFAULT_GHOST_PACE_DEFICIT
   private frightenedGhostChain = 0
   private deathResolveAt = 0
   private eatPauseUntil = 0
@@ -338,6 +340,19 @@ export class GameEngine {
 
   public getSpeedMultiplier(): number {
     return this.speedMultiplier
+  }
+
+  /** Fraction slower than Pac-Man on chase (0.05 = 5% slower). */
+  public setGhostPaceDeficit(deficit: number): void {
+    this.ghostPaceDeficit = Math.min(0.6, Math.max(0.05, deficit))
+  }
+
+  public getGhostPaceDeficit(): number {
+    return this.ghostPaceDeficit
+  }
+
+  private ghostChaseSpeed(): number {
+    return PACMAN_SPEED * (1 - this.ghostPaceDeficit)
   }
 
   private pushEvent(type: GameEvent['type']): void {
@@ -970,9 +985,10 @@ export class GameEngine {
         if (ghost.mode !== 'eyes') {
           ghost.mode = frightened ? 'frightened' : 'chase'
         }
+        const chaseSpeed = this.ghostChaseSpeed()
         const ghostSpeed = ghost.mode === 'eyes'
-          ? EYES_SPEED
-          : (ghost.mode === 'frightened' ? FRIGHTENED_SPEED : GHOST_SPEED)
+          ? chaseSpeed * EYES_PACE_RATIO
+          : (ghost.mode === 'frightened' ? chaseSpeed * FRIGHTENED_PACE_RATIO : chaseSpeed)
         this.moveTraveler(ghost, ghostSpeed * this.speedMultiplier * (delta / 1000))
       }
     }

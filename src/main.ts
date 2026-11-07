@@ -17,6 +17,9 @@ const RECOMMENDED_ZOOM_MIN = 17
 const RECOMMENDED_ZOOM_MAX = 18
 const RECOMMENDED_ZOOM_RANGE = '17-18'
 const DEFAULT_SPEED = 1.5
+const DEFAULT_GHOST_SLOW_PERCENT = 5
+const GHOST_SLOW_MIN_PERCENT = 5
+const GHOST_SLOW_MAX_PERCENT = 50
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector)
@@ -146,6 +149,7 @@ app.innerHTML = `
         <li><span id="shortcut-restart-label"></span><kbd>R</kbd></li>
         <li><span id="shortcut-generate-label"></span><kbd>G</kbd></li>
         <li><span id="shortcut-speed-label"></span><kbd>[ / ]</kbd></li>
+        <li><span id="shortcut-ghost-pace-label"></span><kbd>, / .</kbd></li>
         <li><span id="shortcut-menu-label"></span><kbd>?</kbd></li>
       </ul>
 
@@ -177,6 +181,19 @@ app.innerHTML = `
           <input id="speed-input" type="range" min="0.8" max="2.4" step="0.1" value="${DEFAULT_SPEED}" />
           <strong id="speed-value">${DEFAULT_SPEED.toFixed(1)}x</strong>
         </label>
+        <label class="inline-control">
+          <span id="ghost-pace-label"></span>
+          <input
+            id="ghost-pace-input"
+            type="range"
+            min="${GHOST_SLOW_MIN_PERCENT}"
+            max="${GHOST_SLOW_MAX_PERCENT}"
+            step="5"
+            value="${DEFAULT_GHOST_SLOW_PERCENT}"
+          />
+          <strong id="ghost-pace-value">${DEFAULT_GHOST_SLOW_PERCENT}%</strong>
+        </label>
+        <p id="ghost-pace-hint" class="intro"></p>
         <p id="tip-controls" class="intro"></p>
       </div>
     </aside>
@@ -229,6 +246,10 @@ const restartButton = requireElement<HTMLButtonElement>('#restart-button')
 const speedInput = requireElement<HTMLInputElement>('#speed-input')
 const speedLabel = requireElement<HTMLElement>('#speed-label')
 const speedValue = requireElement<HTMLElement>('#speed-value')
+const ghostPaceInput = requireElement<HTMLInputElement>('#ghost-pace-input')
+const ghostPaceLabel = requireElement<HTMLElement>('#ghost-pace-label')
+const ghostPaceValue = requireElement<HTMLElement>('#ghost-pace-value')
+const ghostPaceHint = requireElement<HTMLElement>('#ghost-pace-hint')
 const vacantValue = requireElement<HTMLElement>('#vacant-value')
 const vacantLabelNode = requireElement<HTMLElement>('#vacant-label')
 const livesValue = requireElement<HTMLElement>('#lives-value')
@@ -249,6 +270,7 @@ const shortcutPauseLabel = requireElement<HTMLElement>('#shortcut-pause-label')
 const shortcutRestartLabel = requireElement<HTMLElement>('#shortcut-restart-label')
 const shortcutGenerateLabel = requireElement<HTMLElement>('#shortcut-generate-label')
 const shortcutSpeedLabel = requireElement<HTMLElement>('#shortcut-speed-label')
+const shortcutGhostPaceLabel = requireElement<HTMLElement>('#shortcut-ghost-pace-label')
 const shortcutMenuLabel = requireElement<HTMLElement>('#shortcut-menu-label')
 
 const mapController = new MapController(mapRoot)
@@ -467,6 +489,8 @@ function renderLocale(): void {
   setText(pauseButton, t('buttons.pause'))
   setText(restartButton, t('buttons.restart'))
   setText(speedLabel, t('controls.speed'))
+  setText(ghostPaceLabel, t('controls.ghostPace'))
+  setText(ghostPaceHint, t('controls.ghostPaceHint'))
   setText(vacantLabelNode, t('stats.vacant'))
   setText(livesLabelNode, t('stats.lives'))
   setText(tipControls, t('tips.controls'))
@@ -478,6 +502,7 @@ function renderLocale(): void {
   setText(shortcutRestartLabel, t('shortcuts.restart'))
   setText(shortcutGenerateLabel, t('shortcuts.generate'))
   setText(shortcutSpeedLabel, t('shortcuts.speed'))
+  setText(shortcutGhostPaceLabel, t('shortcuts.ghostPace'))
   setText(shortcutMenuLabel, t('shortcuts.menu'))
   updateGenerateButtonHint()
   if (currentMessage.key === 'message.initial' || currentMessage.key.startsWith('message.viewport') || currentMessage.key === 'message.moved') {
@@ -521,6 +546,43 @@ function nudgeSpeed(delta: number): void {
   const next = Math.min(2.4, Math.max(0.8, Number(speedInput.value) + delta))
   speedInput.value = next.toFixed(1)
   applySpeed()
+}
+
+function ghostSlowPercentFromQuery(): number | null {
+  const params = new URLSearchParams(window.location.search)
+  const raw = params.get('ghostSlow') ?? params.get('ghostEase')
+  if (!raw) {
+    return null
+  }
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed)) {
+    return null
+  }
+  return parsed
+}
+
+function applyGhostPace(): void {
+  const percent = Number(ghostPaceInput.value)
+  ghostPaceValue.textContent = `${percent}%`
+  engine?.setGhostPaceDeficit(percent / 100)
+}
+
+function nudgeGhostPace(deltaPercent: number): void {
+  const next = Math.min(
+    GHOST_SLOW_MAX_PERCENT,
+    Math.max(GHOST_SLOW_MIN_PERCENT, Number(ghostPaceInput.value) + deltaPercent),
+  )
+  ghostPaceInput.value = String(next)
+  applyGhostPace()
+}
+
+function initGhostPaceFromQuery(): void {
+  const fromQuery = ghostSlowPercentFromQuery()
+  if (fromQuery === null) {
+    return
+  }
+  const clamped = Math.min(GHOST_SLOW_MAX_PERCENT, Math.max(GHOST_SLOW_MIN_PERCENT, fromQuery))
+  ghostPaceInput.value = String(clamped)
 }
 
 function renderLives(count: number): void {
@@ -701,6 +763,7 @@ function applyPlayableMap(map: PlayableMap): void {
   mapController.focusOn(spawnFocusPoint(map))
   engine = new GameEngine(map)
   applySpeed()
+  applyGhostPace()
   drawCurrentFrame()
   syncHud()
 }
@@ -863,6 +926,7 @@ startButton.addEventListener('click', () => {
   void play()
 })
 speedInput.addEventListener('input', applySpeed)
+ghostPaceInput.addEventListener('input', applyGhostPace)
 presetSelect.addEventListener('change', () => {
   void handlePresetSelect()
 })
@@ -941,6 +1005,18 @@ window.addEventListener('keydown', (event) => {
     return
   }
 
+  if (event.key === ',') {
+    event.preventDefault()
+    nudgeGhostPace(5)
+    return
+  }
+
+  if (event.key === '.') {
+    event.preventDefault()
+    nudgeGhostPace(-5)
+    return
+  }
+
   const mapKey: Record<string, Direction> = {
     ArrowUp: 'up',
     ArrowDown: 'down',
@@ -973,8 +1049,10 @@ await mapController.ready()
 addressPresets = await loadAddressPresets()
 vacantCatalog = await loadVacantHouses()
 await renderer.loadSprites().catch(() => undefined)
-applySpeed()
+initGhostPaceFromQuery()
 renderLocale()
+applySpeed()
+applyGhostPace()
 renderStartScreenCopy()
 mapController.onViewChange(() => {
   updateGenerateButtonHint()
