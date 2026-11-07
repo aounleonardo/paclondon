@@ -2,27 +2,27 @@
   "houses": [
     {
       "id": "mock-1",
-      "label": "Bethnal Green Road north (mock)",
-      "lat": 51.52765,
-      "lng": -0.07127
+      "label": "Holloway Road north (mock)",
+      "lat": 51.5575,
+      "lng": -0.1083
     },
     {
       "id": "mock-2",
-      "label": "Bethnal Green Road east (mock)",
-      "lat": 51.52513,
-      "lng": -0.0678
+      "label": "Upper Street / Angel (mock)",
+      "lat": 51.5342,
+      "lng": -0.104
     },
     {
       "id": "mock-3",
-      "label": "Brick Lane south (mock)",
-      "lat": 51.52235,
-      "lng": -0.07127
+      "label": "Highbury Corner (mock)",
+      "lat": 51.5465,
+      "lng": -0.1025
     },
     {
       "id": "mock-4",
-      "label": "Shoreditch High St edge (mock)",
-      "lat": 51.5266,
-      "lng": -0.0745
+      "label": "Caledonian Road edge (mock)",
+      "lat": 51.548,
+      "lng": -0.118
     }
   ]
 }

@@ -115,8 +115,8 @@ Pick **one** of these (simplest first):
 - **Projection:** Web Mercator (same as Google Maps / Mapbox / OSM).
 - **Tile size:** 256×256 or 512×512 px.
 - **Zoom range for play:** at least **z15–z18** (gameplay sits around 17–18). Lower zooms (z12–14) nice for browsing but optional.
-- **Coverage for MVP:** Tower Hamlets / Bethnal Green area is enough to start. Wider London can come later.
-- **Anchor:** include the area around **Newspeak House** (`51.525134, -0.071273`).
+- **Coverage for MVP:** Islington (default). Wider London boroughs can come later.
+- **Anchor:** Emirates Stadium area (`51.555, -0.10833`).
 - **Content:** streets, blocks, landmarks as desired. Prefer a relatively calm background so blue paths and purple/green houses stay readable.
 - **Attribution:** tell us the credit line (e.g. “Map © Studio Name”) so we can show it in the map corner.
 

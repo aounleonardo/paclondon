@@ -1,0 +1,48 @@
+{
+  "id": "islington",
+  "label": "Islington",
+  "kind": "maze",
+  "generatedAt": "2026-11-07T00:00:00.000Z",
+  "viewport": {
+    "center": { "lat": 51.555, "lng": -0.10833 },
+    "zoom": 17,
+    "bounds": {
+      "north": 51.5755041,
+      "south": 51.5185531,
+      "east": -0.0763317,
+      "west": -0.1425085
+    }
+  },
+  "map": {
+    "bounds": {
+      "north": 51.5755041,
+      "south": 51.5185531,
+      "east": -0.0763317,
+      "west": -0.1425085
+    },
+    "center": { "lat": 51.555, "lng": -0.10833 },
+    "nodes": [
+      {
+        "id": "example-node",
+        "lng": -0.10833,
+        "lat": 51.555,
+        "neighbors": ["example-node-2"]
+      }
+    ],
+    "edges": [
+      {
+        "id": "example-edge",
+        "from": "example-node",
+        "to": "example-node-2",
+        "kind": "residential",
+        "length": 40
+      }
+    ],
+    "pellets": [],
+    "powerPellets": [],
+    "vacantHouses": [],
+    "spawnNodeId": "example-node",
+    "ghostHomeNodeIds": ["example-node-2"],
+    "sourceMode": "hybrid"
+  }
+}

@@ -5,7 +5,12 @@
 [build.environment]
   NODE_VERSION = "22"
 
-# SPA-style fallback so deep links still serve the app
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Function routes use `config.path` in each file (/api/borough/:id/...).
+# SPA fallback must stay last so /api/* is not swallowed.
 [[redirects]]
   from = "/*"
   to = "/index.html"

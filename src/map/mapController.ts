@@ -2,10 +2,10 @@ import maplibregl, { type Map } from 'maplibre-gl'
 import type { GeoPoint, ScreenPoint, Viewport } from '../types'
 import { makePixelMapStyle } from './pixelMapStyle'
 
-/** Newspeak House, 133 Bethnal Grn Rd, London E2 7DG */
+/** Emirates Stadium area, London Borough of Islington */
 export const DEFAULT_SPAWN = {
-  lng: -0.071273,
-  lat: 51.525134,
+  lng: -0.10833,
+  lat: 51.555,
   zoom: 17,
 } as const
 
