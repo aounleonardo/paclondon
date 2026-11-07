@@ -1,0 +1,22 @@
+{
+  "frame": [
+    32,
+    32
+  ],
+  "framesPerDirection": 6,
+  "directions": [
+    "down",
+    "right",
+    "up",
+    "left"
+  ],
+  "source": "MetroCity Free Top Down Character Pack by JIK-A-4, CC0, https://jik-a-4.itch.io/metrocity-free-topdown-character-pack",
+  "characters": [
+    "player_1",
+    "player_2",
+    "player_3",
+    "politician",
+    "landlord",
+    "nimby"
+  ]
+}

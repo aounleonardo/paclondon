@@ -9,6 +9,9 @@ import { generatePlayableMap } from './generator/generatePlayableMap'
 import { loadLocale, localeOptions, modeLabel, saveLocale, translate, type Locale } from './i18n'
 import { MapController } from './map/mapController'
 import { CanvasRenderer } from './render/canvasRenderer'
+import { mountIntroFlow } from './ui/introFlow'
+import { TinyLondonPlay } from './tiny/tinyLondonPlay'
+import { parseVacantHouses } from './data/vacantHouses'
 import type { AddressPreset, Direction, PlayableMap, VacantProperty } from './types'
 
 const RECOMMENDED_ZOOM_MIN = 17
@@ -31,7 +34,9 @@ if (!app) {
 }
 
 app.innerHTML = `
-  <div class="shell">
+  <div id="intro-root"></div>
+  <div id="tiny-root" class="hidden"></div>
+  <div class="shell hidden-until-intro" id="game-shell">
     <main class="stage">
       <div id="map"></div>
       <div class="overlay">
@@ -74,6 +79,7 @@ app.innerHTML = `
         <li><span id="shortcut-pause-label"></span><kbd>Space</kbd></li>
         <li><span id="shortcut-restart-label"></span><kbd>R</kbd></li>
         <li><span id="shortcut-generate-label"></span><kbd>G</kbd></li>
+        <li><span id="shortcut-roads-label"></span><kbd>O</kbd></li>
         <li><span id="shortcut-speed-label"></span><kbd>[ / ]</kbd></li>
         <li><span id="shortcut-menu-label"></span><kbd>?</kbd></li>
       </ul>
@@ -148,12 +154,17 @@ const shortcutPlayLabel = requireElement<HTMLElement>('#shortcut-play-label')
 const shortcutPauseLabel = requireElement<HTMLElement>('#shortcut-pause-label')
 const shortcutRestartLabel = requireElement<HTMLElement>('#shortcut-restart-label')
 const shortcutGenerateLabel = requireElement<HTMLElement>('#shortcut-generate-label')
+const shortcutRoadsLabel = requireElement<HTMLElement>('#shortcut-roads-label')
 const shortcutSpeedLabel = requireElement<HTMLElement>('#shortcut-speed-label')
 const shortcutMenuLabel = requireElement<HTMLElement>('#shortcut-menu-label')
+const introRoot = requireElement<HTMLDivElement>('#intro-root')
+const tinyRoot = requireElement<HTMLDivElement>('#tiny-root')
+const gameShell = requireElement<HTMLDivElement>('#game-shell')
 
 const mapController = new MapController(mapRoot)
 const renderer = new CanvasRenderer(canvas)
 const audio = new SynthAudio()
+let tinyPlay: TinyLondonPlay | null = null
 
 let playableMap: PlayableMap | null = null
 let engine: GameEngine | null = null
@@ -315,6 +326,7 @@ function renderLocale(): void {
   setText(shortcutPauseLabel, t('shortcuts.pause'))
   setText(shortcutRestartLabel, t('shortcuts.restart'))
   setText(shortcutGenerateLabel, t('shortcuts.generate'))
+  setText(shortcutRoadsLabel, t('shortcuts.roads'))
   setText(shortcutSpeedLabel, t('shortcuts.speed'))
   setText(shortcutMenuLabel, t('shortcuts.menu'))
   updateGenerateButtonHint()
@@ -707,6 +719,14 @@ window.addEventListener('keydown', (event) => {
     return
   }
 
+  if (event.key === 'o' || event.key === 'O') {
+    event.preventDefault()
+    const showRoads = renderer.toggleShowRoads()
+    setMessageKey(showRoads ? 'message.roadsOn' : 'message.roadsOff')
+    drawCurrentFrame()
+    return
+  }
+
   if (event.key === '[') {
     event.preventDefault()
     nudgeSpeed(-0.1)
@@ -750,6 +770,7 @@ window.addEventListener('resize', () => {
 await mapController.ready()
 addressPresets = await loadAddressPresets()
 vacantCatalog = await loadVacantHouses()
+await renderer.loadSprites().catch(() => undefined)
 applySpeed()
 renderLocale()
 mapController.onViewChange(() => {
@@ -759,8 +780,45 @@ mapController.onViewChange(() => {
   }
   drawCurrentFrame()
 })
-const loadedDefault = await loadDefaultMaze()
-if (!loadedDefault) {
-  setViewportGuidanceMessage()
+
+const introChoice = await mountIntroFlow(introRoot)
+renderer.setPlayerSprite(introChoice.player)
+introRoot.classList.add('hidden')
+
+if (introChoice.borough.useTinyLondon) {
+  gameShell.classList.add('hidden')
+  tinyRoot.classList.remove('hidden')
+  let tinyVacant: VacantProperty[] = vacantCatalog
+  if (introChoice.borough.vacantHousesUrl) {
+    try {
+      const response = await fetch(introChoice.borough.vacantHousesUrl, { cache: 'no-cache' })
+      if (response.ok) {
+        tinyVacant = parseVacantHouses(await response.json())
+      }
+    } catch {
+      // fall back to already-loaded catalog
+    }
+  }
+  tinyPlay = new TinyLondonPlay({
+    root: tinyRoot,
+    boroughDataUrl: introChoice.borough.boroughDataUrl ?? '/borough-data/islington.json',
+    startPostcode: introChoice.borough.startPostcode ?? 'N7 7AJ',
+    player: introChoice.player,
+    vacantHouses: tinyVacant,
+  })
+  await tinyPlay.start()
+} else {
+  gameShell.classList.remove('hidden-until-intro')
+  mapController.resize()
+  mapController.jumpTo(introChoice.borough.lng, introChoice.borough.lat, 17)
+
+  let loadedDefault = false
+  if (introChoice.borough.usePrecomputed) {
+    loadedDefault = await loadDefaultMaze()
+  }
+  if (!loadedDefault) {
+    await generateMaze()
+  }
+  syncHud()
+  window.dispatchEvent(new Event('resize'))
 }
-syncHud()

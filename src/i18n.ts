@@ -9,8 +9,8 @@ const LOCALE_STORAGE_KEY = 'map-pacman-locale'
 
 const translations: Record<Locale, Record<string, Entry>> = {
   en: {
-    'app.eyebrow': 'Pac London',
-    'app.title': 'Vacant House Pac-Man',
+    'app.eyebrow': 'Empty Homes',
+    'app.title': 'London streets',
     'app.intro': 'Run London streets, find purple vacant houses, and report them to the council.',
     'controls.language': 'Language',
     'controls.presets': 'Preset Places',
@@ -34,7 +34,10 @@ const translations: Record<Locale, Record<string, Entry>> = {
     'shortcuts.generate': 'Generate maze',
     'shortcuts.speed': 'Speed',
     'shortcuts.menu': 'Toggle this menu',
+    'shortcuts.roads': 'Toggle walkable streets',
     'stats.mode': 'Mode',
+    'message.roadsOn': 'Walkable street overlay on (O to hide).',
+    'message.roadsOff': 'Walkable street overlay off (O to show).',
     'stats.score': 'Score',
     'stats.vacant': 'Reported',
     'stats.lives': 'Lives',
@@ -80,8 +83,8 @@ const translations: Record<Locale, Record<string, Entry>> = {
     'status.win': 'Win',
   },
   'zh-TW': {
-    'app.eyebrow': '地圖小精靈',
-    'app.title': 'Pac-Man on Map',
+    'app.eyebrow': 'Empty Homes',
+    'app.title': '倫敦街道',
     'app.intro': '把地圖道路轉成可玩的 Pac-Man 關卡。',
     'controls.language': '語言',
     'controls.presets': '預設地點',
@@ -105,7 +108,10 @@ const translations: Record<Locale, Record<string, Entry>> = {
     'shortcuts.generate': '產生迷宮',
     'shortcuts.speed': '速度',
     'shortcuts.menu': '開關此選單',
+    'shortcuts.roads': '開關可行走街道',
     'stats.mode': '模式',
+    'message.roadsOn': '可行走街道顯示中（按 O 隱藏）。',
+    'message.roadsOff': '可行走街道已隱藏（按 O 顯示）。',
     'stats.score': '分數',
     'stats.vacant': '已回報',
     'stats.lives': '生命',

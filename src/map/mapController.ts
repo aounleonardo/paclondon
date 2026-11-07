@@ -1,24 +1,6 @@
-import maplibregl, { type Map, type StyleSpecification } from 'maplibre-gl'
+import maplibregl, { type Map } from 'maplibre-gl'
 import type { GeoPoint, ScreenPoint, Viewport } from '../types'
-
-const TILE_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
-    },
-  },
-  layers: [
-    {
-      id: 'osm',
-      type: 'raster',
-      source: 'osm',
-    },
-  ],
-} as const
+import { makePixelMapStyle } from './pixelMapStyle'
 
 /** Newspeak House, 133 Bethnal Grn Rd, London E2 7DG */
 export const DEFAULT_SPAWN = {
@@ -33,7 +15,8 @@ export class MapController {
   public constructor(container: HTMLElement) {
     this.map = new maplibregl.Map({
       container,
-      style: TILE_STYLE,
+      style: makePixelMapStyle('night'),
+      pixelRatio: 0.33,
       center: [DEFAULT_SPAWN.lng, DEFAULT_SPAWN.lat],
       zoom: DEFAULT_SPAWN.zoom,
     })
@@ -74,6 +57,13 @@ export class MapController {
       center: [lng, lat],
       zoom,
       speed: 0.8,
+    })
+  }
+
+  public jumpTo(lng: number, lat: number, zoom = DEFAULT_SPAWN.zoom): void {
+    this.map.jumpTo({
+      center: [lng, lat],
+      zoom,
     })
   }
 
@@ -154,6 +144,10 @@ export class MapController {
       x: projected.x,
       y: projected.y,
     }
+  }
+
+  public resize(): void {
+    this.map.resize()
   }
 
   public onViewChange(listener: () => void): void {
