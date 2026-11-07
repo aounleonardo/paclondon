@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Empty Homes Deck</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+/* Style A: Night bus, same tokens as the game */
+:root{
+  --night:#14122a; --night-2:#1b1838; --block:#2a2550; --block-2:#3a3370;
+  --text:#f1ecff; --muted:#a59fd0; --vacant:#b46cff; --vacant-shadow:#6a2fb3; --filled:#7ee8a2; --danger:#ff6b7a;
+  --head:"Press Start 2P",monospace; --body:"VT323",monospace;
+  --s1:12px; --s2:24px; --s3:40px; --s4:64px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0e0c1f;color:var(--text);overflow:hidden}
+/* 16:9 stage, scaled to fit the window */
+.stage{position:absolute;width:1600px;height:900px;left:50%;top:50%;transform-origin:center;background:var(--night);overflow:hidden}
+.slide{position:absolute;inset:0;display:none;padding:var(--s4) 96px;font:34px/1.25 var(--body)}
+.slide.on{display:grid}
+h1{font:64px/1.35 var(--head);color:var(--vacant);margin:0}
+h2{font:34px/1.5 var(--head);margin:0}
+h3{font:18px/1.6 var(--head);margin:0;color:var(--filled)}
+p{margin:0}
+.muted{color:var(--muted)}
+.ok{color:var(--filled)}
+.vac{color:var(--vacant)}
+.sky{position:absolute;left:0;right:0;bottom:0;height:72px;background:repeating-linear-gradient(90deg,var(--block) 0 26px,var(--night) 26px 32px,var(--block-2) 32px 58px,var(--night) 58px 64px)}
+.sprite{width:128px;height:128px;image-rendering:pixelated;background-size:3072px 128px;background-repeat:no-repeat;animation:walk .7s steps(6) infinite}
+@keyframes walk{from{background-position:0 0}to{background-position:-768px 0}}
+.house{width:120px;image-rendering:pixelated}
+.panel{background:var(--night-2);box-shadow:inset 0 0 0 4px var(--block-2);padding:var(--s2)}
+.source{position:absolute;left:96px;bottom:28px;font:22px var(--body);color:var(--muted)}
+.num{font:30px/1.2 var(--head)}
+.foot{position:absolute;right:28px;bottom:22px;font:14px var(--head);color:var(--muted)}
+
+/* 1 open */
+#s1{align-content:center;justify-items:center;text-align:center;gap:var(--s3)}
+#s1 h1{font-size:88px}
+#s1 .cast{display:flex;gap:var(--s3);align-items:end}
+/* 2 problem */
+#s2{grid-template-columns:1.1fr 1fr;gap:var(--s4);align-items:center}
+.big{font:120px/1 var(--head);color:var(--vacant);text-shadow:6px 6px 0 var(--vacant-shadow)}
+.bars{display:flex;align-items:end;gap:10px;height:300px;padding-top:var(--s2)}
+.bars div{flex:1;background:var(--block-2);position:relative}
+.bars div.hi{background:var(--vacant)}
+.bars span{position:absolute;bottom:-34px;left:50%;transform:translateX(-50%);font:20px var(--body);color:var(--muted);white-space:nowrap}
+.bars b{position:absolute;top:-30px;left:50%;transform:translateX(-50%);font:20px var(--body);color:var(--text)}
+/* 3 solution */
+#s3{align-content:center;gap:var(--s3)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2)}
+.step{display:grid;gap:var(--s1);justify-items:center;text-align:center}
+.step .n{font:18px var(--head);color:var(--muted)}
+/* 4 what */
+#s4{grid-template-columns:1fr 1fr;gap:var(--s4);align-items:center}
+.list{display:grid;gap:var(--s2)}
+.list div{display:grid;grid-template-columns:28px 1fr;gap:var(--s1);align-items:baseline}
+.list i{font:18px var(--head);color:var(--vacant);font-style:normal}
+.chasers{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);text-align:center}
+.chasers div{display:grid;justify-items:center;gap:6px}
+/* 5 how */
+#s5{align-content:center;gap:var(--s3)}
+.flow{display:grid;grid-template-columns:1fr 40px 1fr 40px 1fr 40px 1fr;align-items:stretch;gap:0}
+.flow .panel{display:grid;gap:var(--s1);align-content:start;font-size:28px}
+.arrow{display:grid;place-items:center;font:28px var(--head);color:var(--vacant)}
+/* 6 demo */
+#s6{grid-template-rows:auto 1fr;gap:var(--s2)}
+.shot{position:relative;box-shadow:inset 0 0 0 4px var(--block-2);overflow:hidden}
+.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:22px var(--head);padding:22px 28px;background:var(--vacant);color:var(--night);box-shadow:6px 6px 0 var(--vacant-shadow);text-decoration:none}
+/* 7 contact */
+#s7{align-content:center;justify-items:center;text-align:center;gap:var(--s3)}
+.links{display:grid;gap:var(--s1);font-size:36px}
+.links a{color:var(--filled)}
+.todo{color:var(--danger)}
+/* controls */
+.nav{position:fixed;left:16px;bottom:12px;font:12px var(--head);color:var(--muted);z-index:2}
+@media print{
+  html,body{overflow:visible;background:var(--night)}
+  .stage{position:relative;left:0;top:0;transform:none!important;height:auto;width:1600px}
+  .slide{display:grid!important;position:relative;height:900px;page-break-after:always;break-after:page}
+  .nav{display:none}
+  @page{size:1600px 900px;margin:0}
+}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+
+<!-- 1. Open -->
+<section class="slide on" id="s1">
+  <div class="cast">
+    <div class="sprite" style="background-image:url(../assets/characters/politician.png)"></div>
+    <div class="sprite" style="background-image:url(../assets/characters/player_1.png);width:160px;height:160px;background-size:3840px 160px;animation-name:walkb"></div>
+    <div class="sprite" style="background-image:url(../assets/characters/landlord.png)"></div>
+  </div>
+  <h1>Empty<br>Homes</h1>
+  <p class="ok">Find London's empty houses. Fill them. Don't get caught.</p>
+  <div class="sky"></div>
+</section>
+
+<!-- 2. Problem -->
+<section class="slide" id="s2">
+  <div style="display:grid;gap:var(--s2)">
+    <h3>The problem</h3>
+    <div class="big">973</div>
+    <h2>homes in Islington have stood empty for over 6 months.</h2>
+    <p class="muted">Up from 749 a year earlier (+30%). 303,185 across England.</p>
+    <p>Councils can step in, with an Empty Dwelling Management Order. But first someone has to find them and report them.</p>
+  </div>
+  <div class="panel" style="display:grid;gap:var(--s2);padding-bottom:56px">
+    <p class="muted" style="font-size:26px">Long-term empty homes, Islington</p>
+    <div class="bars" id="bars"></div>
+  </div>
+  <p class="source">Source: MHCLG Live Table 615, long-term vacant dwellings (empty 6+ months), October counts.</p>
+</section>
+
+<!-- 3. Solution -->
+<section class="slide" id="s3">
+  <h3>The solution</h3>
+  <h2>Turn finding empty homes into a game.</h2>
+  <div class="steps">
+    <div class="step panel"><span class="n">1</span><img class="house" src="../assets/houses/house_4_empty_tint.png" alt=""><p>Run the real streets of your borough and find the empty homes.</p></div>
+    <div class="step panel"><span class="n">2</span><img class="house" src="../assets/houses/house_4_filled_tint.png" alt=""><p>Stand next to one to report it. Purple turns green.</p></div>
+    <div class="step panel"><span class="n">3</span><div class="num ok" style="padding:36px 0">973</div><p>Clear the borough and see its real empty-homes numbers.</p></div>
+  </div>
+</section>
+
+<!-- 4. What it is -->
+<section class="slide" id="s4">
+  <div style="display:grid;gap:var(--s3)">
+    <h3>What it is</h3>
+    <h2>A pixel arcade game on a real map of London.</h2>
+    <div class="list">
+      <div><i>&#9654;</i><p>Plays in the browser. Nothing to install.</p></div>
+      <div><i>&#9654;</i><p>Pick a borough. Islington first.</p></div>
+      <div><i>&#9654;</i><p>Every street is a real street. Every empty home sits on a real building.</p></div>
+      <div><i>&#9654;</i><p>3 lives. Get caught and you lose one.</p></div>
+    </div>
+  </div>
+  <div class="panel" style="display:grid;gap:var(--s2)">
+    <h3 style="color:var(--danger)">Who's chasing you</h3>
+    <div class="chasers">
+      <div><div class="sprite" style="background-image:url(../assets/characters/politician.png)"></div><p>The Politician</p></div>
+      <div><div class="sprite" style="background-image:url(../assets/characters/landlord.png)"></div><p>The Landlord</p></div>
+      <div><div class="sprite" style="background-image:url(../assets/characters/nimby.png)"></div><p>The NIMBY</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. How it works -->
+<section class="slide" id="s5">
+  <h3>How it works</h3>
+  <h2>Real data, all the way down.</h2>
+  <div class="flow">
+    <div class="panel"><h3>Map</h3><p>tiny.london: Greater London as one pixel-art picture.</p></div>
+    <div class="arrow">&#9654;</div>
+    <div class="panel"><h3>Streets</h3><p>OpenStreetMap roads, lined up to the picture with the map's own projection. You can only walk on real roads.</p></div>
+    <div class="arrow">&#9654;</div>
+    <div class="panel"><h3>Empty homes</h3><p>Each one sits on a real residential building. Next: government counts by postcode decide how many, and where.</p></div>
+    <div class="arrow">&#9654;</div>
+    <div class="panel"><h3>Report</h3><p>Stand by a home for 1 second. It turns green. Fill them all to clear the borough.</p></div>
+  </div>
+  <p class="muted" style="font-size:26px">Islington: 21,000 road segments, 10,000 homes, 239 postcodes.</p>
+</section>
+
+<!-- 6. Demo -->
+<section class="slide" id="s6">
+  <h3>Demo</h3>
+  <div class="shot">
+    <img src="../reference/islington-demo.png" alt="The game in Islington: player on a real street, nearest empty home 240 m away">
+    <a class="play" href="https://paclondon.netlify.app/" target="_blank" rel="noopener">Play live</a>
+  </div>
+</section>
+
+<!-- 7. Stay in touch -->
+<section class="slide" id="s7">
+  <div class="cast" style="display:flex;gap:var(--s3)">
+    <div class="sprite" style="background-image:url(../assets/characters/player_1.png)"></div>
+    <div class="sprite" style="background-image:url(../assets/characters/player_2.png)"></div>
+    <div class="sprite" style="background-image:url(../assets/characters/player_3.png)"></div>
+  </div>
+  <h1 style="font-size:56px">Stay in touch</h1>
+  <div class="links">
+    <a href="https://paclondon.netlify.app/">paclondon.netlify.app</a>
+    <a href="https://github.com/aounleonardo/paclondon">github.com/aounleonardo/paclondon</a>
+    <p class="todo">[ Team names and contacts ]</p>
+  </div>
+  <div class="sky"></div>
+</section>
+
+<div class="foot" id="foot"></div>
+</div>
+<div class="nav">&#8592; &#8594; to move</div>
+
+<script>
+// problem chart: Islington long-term vacants (Live Table 615)
+const LT=[[2015,953],[2016,499],[2017,644],[2018,621],[2019,750],[2020,649],[2021,823],[2022,733],[2023,657],[2024,749],[2025,973]];
+const max=Math.max(...LT.map(d=>d[1]));
+document.getElementById('bars').innerHTML=LT.map(([y,v])=>`<div class="${y===2025?'hi':''}" style="height:${v/max*100}%">${y===2025||y===2024?`<b>${v}</b>`:''}<span>${String(y).slice(2)}</span></div>`).join('');
+
+const slides=[...document.querySelectorAll('.slide')]; let i=0;
+function go(n){ i=Math.max(0,Math.min(slides.length-1,n)); slides.forEach((s,k)=>s.classList.toggle('on',k===i)); document.getElementById('foot').textContent=`${i+1} / ${slides.length}`; try{history.replaceState(null,'','#'+(i+1))}catch(e){} }
+addEventListener('keydown',e=>{ if(['ArrowRight','PageDown',' '].includes(e.key)){go(i+1);e.preventDefault();} if(['ArrowLeft','PageUp'].includes(e.key)){go(i-1);e.preventDefault();} if(e.key==='f') document.documentElement.requestFullscreen?.(); });
+document.getElementById('stage').addEventListener('click',e=>{ if(e.target.closest('a')) return; go(e.clientX>innerWidth/2?i+1:i-1); });
+function fit(){ const s=Math.min(innerWidth/1600,innerHeight/900); document.getElementById('stage').style.transform=`translate(-50%,-50%) scale(${s})`; }
+addEventListener('resize',fit); fit(); go((parseInt(location.hash.slice(1))||1)-1);
+</script>
+<style>@keyframes walkb{from{background-position:0 0}to{background-position:-960px 0}}</style>
+</body>
+</html>

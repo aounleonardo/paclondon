@@ -75,3 +75,4 @@ Open `handoff/screens-tinylondon.html`. Play goes into **Islington**, starting a
 ## Deck
 
 - `deck/empty-homes-deck.pdf`: 7-slide pitch (open, problem, solution, what it is, how it works, demo, stay in touch). Live app: https://paclondon.netlify.app
+- `deck/index.html`: the same deck as a web page, with the animated sprites. Open it in a browser: arrow keys or click to move, F for full screen.
