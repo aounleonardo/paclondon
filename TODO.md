@@ -61,7 +61,7 @@ Mock points sit close enough to appear in a zoom 17–18 Newspeak House maze.
 
 ### Nice-to-have / later
 
-- [ ] **First screen / loading scene** that explains the objectives (find purple vacant houses, report them, avoid ghosts, clear the borough)
+- [x] **First screen / loading scene** that explains the objectives (find purple vacant houses, report them, avoid ghosts, clear the borough)
 - [ ] Real vacant GeoJSON/CSV ingest before publish
 - [ ] Custom Illustrator basemap when designer delivers
 - [ ] Score still tracking reports / chains
