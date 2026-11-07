@@ -53,6 +53,14 @@ export interface Pellet extends GeoPoint {
   power: boolean
 }
 
+export type VacantStatus = 'vacant' | 'reported'
+
+export interface VacantProperty extends GeoPoint {
+  id: string
+  label?: string
+  status: VacantStatus
+}
+
 export type BonusFruitType = 'cherry' | 'strawberry' | 'orange' | 'apple'
 
 export interface BonusFruit extends GeoPoint {
@@ -70,6 +78,7 @@ export interface PlayableMap {
   edges: RoadGraphEdge[]
   pellets: Pellet[]
   powerPellets: Pellet[]
+  vacantHouses: VacantProperty[]
   spawnNodeId: string
   ghostHomeNodeIds: string[]
   sourceMode: SourceMode

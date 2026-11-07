@@ -1,0 +1,28 @@
+{
+  "houses": [
+    {
+      "id": "mock-1",
+      "label": "Columbia Road (mock)",
+      "lat": 51.5305,
+      "lng": -0.0713
+    },
+    {
+      "id": "mock-2",
+      "label": "Bethnal Green Rd east (mock)",
+      "lat": 51.5251,
+      "lng": -0.06
+    },
+    {
+      "id": "mock-3",
+      "label": "Whitechapel north (mock)",
+      "lat": 51.519,
+      "lng": -0.0695
+    },
+    {
+      "id": "mock-4",
+      "label": "Shoreditch High St (mock)",
+      "lat": 51.5278,
+      "lng": -0.081
+    }
+  ]
+}

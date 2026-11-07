@@ -1,7 +1,8 @@
-import type { GeoPoint, Pellet, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, Viewport } from '../types'
+import type { GeoPoint, Pellet, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, VacantProperty, Viewport } from '../types'
 
 interface GenerateOptions {
   pelletDensity?: number
+  vacantHouses?: VacantProperty[]
 }
 
 const MIN_NODE_COUNT = 12
@@ -455,6 +456,7 @@ export function generatePlayableMap(viewport: Viewport, roadData: RoadData, opti
     edges: prepared.roadData.edges,
     pellets,
     powerPellets,
+    vacantHouses: (options.vacantHouses ?? []).map((house) => ({ ...house, status: 'vacant' })),
     spawnNodeId: spawnNode.id,
     ghostHomeNodeIds,
     sourceMode: prepared.sourceMode,
