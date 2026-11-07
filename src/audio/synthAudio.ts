@@ -50,6 +50,9 @@ export class SynthAudio {
         this.engine.playTrack(this.pelletToggle ? 'eating-dot-2' : 'eating-dot-1', 0)
         this.pelletToggle = !this.pelletToggle
         break
+      case 'report':
+        this.engine.playTrack('fruit', 1)
+        break
       case 'power':
         this.engine.playTrack('extra-life', 1)
         break

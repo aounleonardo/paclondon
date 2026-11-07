@@ -43,6 +43,31 @@ export function vacantHousesInBounds(houses: VacantProperty[], bounds: Bounds): 
     && house.lng <= bounds.east)
 }
 
+function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const latScale = 111_320
+  const lngScale = Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180) * latScale
+  const dx = (a.lng - b.lng) * lngScale
+  const dy = (a.lat - b.lat) * latScale
+  return Math.hypot(dx, dy)
+}
+
+/** Prefer houses in the viewport; if none, fall back to the nearest ones around the centre. */
+export function selectVacantHousesForPlay(
+  houses: VacantProperty[],
+  bounds: Bounds,
+  center: { lat: number; lng: number },
+  fallbackCount = 4,
+): VacantProperty[] {
+  const inView = vacantHousesInBounds(houses, bounds)
+  if (inView.length > 0) {
+    return inView
+  }
+
+  return [...houses]
+    .sort((a, b) => distanceMeters(a, center) - distanceMeters(b, center))
+    .slice(0, fallbackCount)
+}
+
 export async function loadVacantHouses(): Promise<VacantProperty[]> {
   try {
     const response = await fetch(VACANT_HOUSES_URL, { cache: 'no-cache' })

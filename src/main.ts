@@ -2,12 +2,13 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import './style.css'
 import { SynthAudio } from './audio/synthAudio'
 import { fetchRoadData, loadAddressPresets, searchPlaces } from './data/overpass'
+import { loadVacantHouses, selectVacantHousesForPlay } from './data/vacantHouses'
 import { GameEngine } from './game/gameEngine'
 import { generatePlayableMap } from './generator/generatePlayableMap'
 import { loadLocale, localeOptions, modeLabel, saveLocale, statusLabel, translate, type Locale } from './i18n'
 import { MapController } from './map/mapController'
 import { CanvasRenderer } from './render/canvasRenderer'
-import type { AddressPreset, Direction, PlayableMap } from './types'
+import type { AddressPreset, Direction, PlayableMap, VacantProperty } from './types'
 
 const RECOMMENDED_ZOOM_MIN = 17
 const RECOMMENDED_ZOOM_MAX = 18
@@ -65,7 +66,7 @@ app.innerHTML = `
           <input id="speed-input" type="range" min="0.8" max="2.4" step="0.1" value="1.0" />
           <strong id="speed-value">1.0x</strong>
         </label>
-        <label class="inline-control">
+        <label id="pellet-control" class="inline-control hidden">
           <span id="pellet-label"></span>
           <input id="pellet-input" type="range" min="1.0" max="5.0" step="0.5" value="2.0" />
           <strong id="pellet-value">2.0x</strong>
@@ -74,6 +75,7 @@ app.innerHTML = `
 
       <div class="stats">
         <div><span id="score-label"></span><strong id="score-value">0</strong></div>
+        <div><span id="vacant-label"></span><strong id="vacant-value">0 / 0</strong></div>
         <div><span id="lives-label"></span><div id="lives-value" class="life-icons"></div></div>
         <div><span id="status-label"></span><strong id="status-value">Idle</strong></div>
       </div>
@@ -126,6 +128,8 @@ const pelletValue = requireElement<HTMLElement>('#pellet-value')
 const modeLabelNode = requireElement<HTMLElement>('#mode-label')
 const scoreValue = requireElement<HTMLElement>('#score-value')
 const scoreLabelNode = requireElement<HTMLElement>('#score-label')
+const vacantValue = requireElement<HTMLElement>('#vacant-value')
+const vacantLabelNode = requireElement<HTMLElement>('#vacant-label')
 const livesValue = requireElement<HTMLElement>('#lives-value')
 const livesLabelNode = requireElement<HTMLElement>('#lives-label')
 const statusValue = requireElement<HTMLElement>('#status-value')
@@ -149,6 +153,7 @@ let animationFrame = 0
 let currentLocale: Locale = loadLocale()
 let currentMessage: { key: string; params?: Record<string, string | number> } = { key: 'message.initial' }
 let addressPresets: AddressPreset[] = []
+let vacantCatalog: VacantProperty[] = []
 let movedMessageTimer: number | null = null
 let isGenerating = false
 
@@ -282,6 +287,7 @@ function renderLocale(): void {
   setText(pelletLabel, t('controls.pellets'))
   setText(modeLabelNode, t('stats.mode'))
   setText(scoreLabelNode, t('stats.score'))
+  setText(vacantLabelNode, t('stats.vacant'))
   setText(livesLabelNode, t('stats.lives'))
   setText(statusLabelNode, t('stats.status'))
   setText(tipControls, t('tips.controls'))
@@ -335,16 +341,24 @@ function renderLives(count: number): void {
   setHtml(livesValue, icons.join(''))
 }
 
+function formatVacantCount(reported: number, total: number): string {
+  return `${reported} / ${total}`
+}
+
 function syncHud(): void {
   if (!engine) {
+    const previewTotal = playableMap?.vacantHouses.length ?? 0
     setText(scoreValue, '0')
+    setText(vacantValue, formatVacantCount(0, previewTotal))
     renderLives(3)
     setText(statusValue, playableMap ? statusLabel(currentLocale, 'preview') : statusLabel(currentLocale, 'idle'))
     setText(modeValue, modeLabel(currentLocale, playableMap?.sourceMode ?? 'idle'))
     return
   }
 
+  const totalVacant = engine.state.remainingVacant + engine.state.reportedVacant
   setText(scoreValue, String(engine.state.score))
+  setText(vacantValue, formatVacantCount(engine.state.reportedVacant, totalVacant))
   renderLives(engine.state.lives)
   setText(statusValue, statusLabel(currentLocale, engine.state.status))
   setText(modeValue, modeLabel(currentLocale, engine.map.sourceMode))
@@ -485,8 +499,12 @@ async function generateMaze(): Promise<void> {
   try {
     const viewport = mapController.getViewport()
     const roadData = await fetchRoadData(viewport.bounds)
-    playableMap = generatePlayableMap(viewport, roadData)
-    mapController.fitToPoints(playableMap.nodes)
+    const vacantHouses = selectVacantHousesForPlay(vacantCatalog, viewport.bounds, viewport.center)
+    playableMap = generatePlayableMap(viewport, roadData, { vacantHouses })
+    mapController.fitToPoints([
+      ...playableMap.nodes,
+      ...playableMap.vacantHouses,
+    ])
     engine = new GameEngine(playableMap)
     applySpeed()
     drawCurrentFrame()
@@ -614,6 +632,7 @@ window.addEventListener('resize', () => {
 
 await mapController.ready()
 addressPresets = await loadAddressPresets()
+vacantCatalog = await loadVacantHouses()
 applySpeed()
 applyPelletDensity()
 renderLocale()

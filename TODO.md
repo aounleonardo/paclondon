@@ -27,10 +27,12 @@ Placeholder points only — swap for real data before publish.
 
 | id | label | lat | lng | ~distance |
 | --- | --- | --- | --- | --- |
-| mock-1 | Columbia Road (mock) | 51.53050 | -0.07130 | ~0.4 mi N |
-| mock-2 | Bethnal Green Rd east (mock) | 51.52510 | -0.06000 | ~0.5 mi E |
-| mock-3 | Whitechapel north (mock) | 51.51900 | -0.06950 | ~0.4 mi S |
-| mock-4 | Shoreditch High St (mock) | 51.52780 | -0.08100 | ~0.5 mi W |
+| mock-1 | Bethnal Green Road north (mock) | 51.52765 | -0.07127 | ~280 m N |
+| mock-2 | Bethnal Green Road east (mock) | 51.52513 | -0.06780 | ~240 m E |
+| mock-3 | Brick Lane south (mock) | 51.52235 | -0.07127 | ~310 m S |
+| mock-4 | Shoreditch High St edge (mock) | 51.52660 | -0.07450 | ~250 m NW |
+
+Mock points sit close enough to appear in a zoom 17–18 Newspeak House maze.
 
 ---
 
@@ -47,15 +49,15 @@ Placeholder points only — swap for real data before publish.
 
 ## Components we need
 
-- [ ] **Remove street pellets** (and power pellets) — win is reporting vacant houses only; no yellow dots along roads
-- [ ] Ingest a list of vacant houses (mock 4 for MVP); render **purple**
-- [ ] Proximity hold: within **15 m** for 1s → report → **green** + fill-ring UI
-- [ ] Win when all houses reported
-- [ ] Keep lives / ghosts / death; preserve reported state across lives
-- [ ] Spawn near Newspeak House / Tower Hamlets play area
-- [ ] Data shape: `{ id, address?, lat, lng, status: 'vacant' | 'reported' }`
-- [ ] HUD: remaining vacant / reported count (not pellet count)
-- [ ] Win / game-over copy in playful Pac-Man tone
+- [x] **Remove street pellets** (and power pellets) — win is reporting vacant houses only; no yellow dots along roads
+- [x] Ingest a list of vacant houses (mock 4 for MVP); render **purple**
+- [x] Proximity hold: within **15 m** for 1s → report → **green** + fill-ring UI
+- [x] Win when all houses reported
+- [x] Keep lives / ghosts / death; preserve reported state across lives
+- [x] Spawn near Newspeak House / Tower Hamlets play area
+- [x] Data shape: `{ id, address?, lat, lng, status: 'vacant' | 'reported' }`
+- [x] HUD: remaining vacant / reported count (not pellet count)
+- [x] Win / game-over copy in playful Pac-Man tone
 
 ### Nice-to-have / later
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseVacantHouses, vacantHousesInBounds } from './vacantHouses'
+import { parseVacantHouses, selectVacantHousesForPlay, vacantHousesInBounds } from './vacantHouses'
 
 describe('vacantHouses', () => {
   it('parses mock vacant house records into vacant properties', () => {
@@ -37,5 +37,28 @@ describe('vacantHouses', () => {
     })
 
     expect(visible.map((house) => house.id)).toEqual(['inside'])
+  })
+
+  it('falls back to nearest houses when none sit in the viewport', () => {
+    const houses = parseVacantHouses({
+      houses: [
+        { id: 'near', lat: 51.526, lng: -0.071 },
+        { id: 'far', lat: 51.54, lng: -0.05 },
+      ],
+    })
+
+    const selected = selectVacantHousesForPlay(
+      houses,
+      {
+        north: 51.521,
+        south: 51.52,
+        east: -0.07,
+        west: -0.072,
+      },
+      { lat: 51.525, lng: -0.071 },
+      1,
+    )
+
+    expect(selected.map((house) => house.id)).toEqual(['near'])
   })
 })
