@@ -1,5 +1,6 @@
 import type { GeoPoint, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, VacantProperty, Viewport } from '../types'
 import { filterReachableVacantHouses } from './filterReachableVacantHouses'
+import { bridgeRoadGraphGaps } from './bridgeRoadGraphGaps'
 import { simplifyRoadGraph } from './simplifyRoadGraph'
 
 interface GenerateOptions {
@@ -251,7 +252,7 @@ function prepareRoadNetwork(viewport: Viewport, roadData: RoadData): { roadData:
     if (component.nodes.length >= 4) {
       const hybrid = connectDeadEnds(component)
       if (hybrid.roadData.nodes.length >= 4 && hybrid.roadData.edges.length >= 6) {
-        return { roadData: simplifyRoadGraph(hybrid.roadData), sourceMode: 'hybrid' }
+        return { roadData: bridgeRoadGraphGaps(simplifyRoadGraph(hybrid.roadData)), sourceMode: 'hybrid' }
       }
     }
     return { roadData: fallbackGrid(viewport), sourceMode: 'generated' }
@@ -259,7 +260,7 @@ function prepareRoadNetwork(viewport: Viewport, roadData: RoadData): { roadData:
 
   const hybrid = connectDeadEnds(component)
   return {
-    roadData: simplifyRoadGraph(hybrid.roadData),
+    roadData: bridgeRoadGraphGaps(simplifyRoadGraph(hybrid.roadData)),
     sourceMode: hybrid.added > 0 ? 'hybrid' : 'road',
   }
 }

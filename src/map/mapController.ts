@@ -77,6 +77,14 @@ export class MapController {
     })
   }
 
+  /** Snap the map to street-level gameplay around a point. */
+  public focusOn(point: GeoPoint, zoom = DEFAULT_SPAWN.zoom): void {
+    this.map.jumpTo({
+      center: [point.lng, point.lat],
+      zoom,
+    })
+  }
+
   /** Keep the player's zoom; only re-center on them while playing. */
   public follow(point: GeoPoint): void {
     this.map.setCenter([point.lng, point.lat])

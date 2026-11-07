@@ -1,12 +1,17 @@
+import { bridgeRoadGraphGaps } from '../generator/bridgeRoadGraphGaps'
 import { filterReachableVacantHouses } from '../generator/filterReachableVacantHouses'
-import type { Bounds, GeoPoint, PlayableMap, SourceMode, VacantProperty, Viewport } from '../types'
+import type { Bounds, GeoPoint, PlayableMap, RoadData, SourceMode, VacantProperty, Viewport } from '../types'
 
 const DEFAULT_MAZE_URL = `${import.meta.env.BASE_URL}mazes/islington.json`
+
+/** Mazes baked at or above this version already include 1 m junction bridges. */
+export const GRAPH_BRIDGE_VERSION = 1
 
 export interface PrecomputedMazeFile {
   id: string
   label: string
   generatedAt?: string
+  graphBridgeVersion?: number
   viewport: Viewport
   map: PlayableMap
 }
@@ -72,19 +77,33 @@ export function parsePrecomputedMaze(payload: unknown): PrecomputedMazeFile | nu
     return null
   }
 
+  const bridgeVersion = typeof payload.graphBridgeVersion === 'number'
+    ? payload.graphBridgeVersion
+    : 0
+  const roadData: RoadData = bridgeVersion >= GRAPH_BRIDGE_VERSION
+    ? { nodes: payload.map.nodes, edges: payload.map.edges }
+    : bridgeRoadGraphGaps({
+      nodes: payload.map.nodes,
+      edges: payload.map.edges,
+    })
   const vacantHouses = filterReachableVacantHouses(
     payload.map.vacantHouses.map((house) => ({ ...house, status: 'vacant' as const })),
-    payload.map.nodes,
-    payload.map.edges,
+    roadData.nodes,
+    roadData.edges,
   )
 
   return {
     id: payload.id,
     label: payload.label,
     generatedAt: typeof payload.generatedAt === 'string' ? payload.generatedAt : undefined,
+    graphBridgeVersion: bridgeVersion >= GRAPH_BRIDGE_VERSION
+      ? bridgeVersion
+      : undefined,
     viewport: payload.viewport,
     map: {
       ...payload.map,
+      nodes: roadData.nodes,
+      edges: roadData.edges,
       vacantHouses,
       sourceMode: payload.map.sourceMode as SourceMode,
     },

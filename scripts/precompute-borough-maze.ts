@@ -13,6 +13,7 @@ import { generatePlayableMap } from '../src/generator/generatePlayableMap'
 import { DEFAULT_SPAWN } from '../src/map/mapController'
 import type { Bounds, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, Viewport } from '../src/types'
 import { loadBoroughPolygon, pointInRing, splitBounds } from './lib/boroughGeo'
+import { GRAPH_BRIDGE_VERSION } from '../src/data/precomputedMaze'
 import { getMazesStore } from './lib/netlifyBlobs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -35,6 +36,7 @@ export interface BoroughMazeBlob {
   label: string
   kind: 'maze'
   generatedAt: string
+  graphBridgeVersion: number
   viewport: Viewport
   map: PlayableMap
 }
@@ -128,6 +130,7 @@ async function main(): Promise<void> {
     label: borough.name,
     kind: 'maze',
     generatedAt: new Date().toISOString(),
+    graphBridgeVersion: GRAPH_BRIDGE_VERSION,
     viewport,
     map,
   }

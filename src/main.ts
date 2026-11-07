@@ -11,7 +11,7 @@ import { MapController } from './map/mapController'
 import { CanvasRenderer } from './render/canvasRenderer'
 import { tryShowEndGameCta } from './ui/endGameCta'
 import { mountIntroFlow, type BoroughChoice } from './ui/introFlow'
-import type { AddressPreset, Direction, PlayableMap, VacantProperty } from './types'
+import type { AddressPreset, Direction, GeoPoint, PlayableMap, VacantProperty } from './types'
 
 const RECOMMENDED_ZOOM_MIN = 17
 const RECOMMENDED_ZOOM_MAX = 18
@@ -692,16 +692,24 @@ async function handlePresetSelect(): Promise<void> {
   }
 }
 
+function spawnFocusPoint(map: PlayableMap): GeoPoint {
+  return map.nodes.find((node) => node.id === map.spawnNodeId) ?? map.center
+}
+
 function applyPlayableMap(map: PlayableMap): void {
   playableMap = map
-  mapController.fitToPoints([
-    ...map.nodes,
-    ...map.vacantHouses,
-  ])
+  mapController.focusOn(spawnFocusPoint(map))
   engine = new GameEngine(map)
   applySpeed()
   drawCurrentFrame()
   syncHud()
+}
+
+function focusOnPlayer(): void {
+  if (!engine) {
+    return
+  }
+  mapController.focusOn(engine.state.pacman.position)
 }
 
 function boroughIdForChoice(borough: BoroughChoice): string {
@@ -788,7 +796,7 @@ async function play(): Promise<void> {
   await audio.unlock()
   engine.start()
   mapController.setInteractive(false)
-  mapController.follow(engine.state.pacman.position)
+  focusOnPlayer()
   audio.setAmbience(true)
   startLoop()
   processEngineEvents()
@@ -812,6 +820,7 @@ function restart(): void {
   engine.restart()
   mapController.setInteractive(true)
   audio.setAmbience(false)
+  focusOnPlayer()
   drawCurrentFrame()
   syncHud()
 }

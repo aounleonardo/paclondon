@@ -12,6 +12,8 @@
     "precompute:borough": "npx vite-node scripts/precompute-borough-maze.ts",
     "precompute:islington": "npx vite-node scripts/precompute-borough-maze.ts --borough=islington",
     "precompute:islington:upload": "npx vite-node scripts/precompute-borough-maze.ts --borough=islington --upload",
+    "rebake:islington:bridges": "npx vite-node scripts/rebake-maze-graph-bridges.ts --borough=islington",
+    "rebake:islington:bridges:upload": "npx vite-node scripts/rebake-maze-graph-bridges.ts --borough=islington --upload",
     "upload:vacant-houses": "npx vite-node scripts/upload-vacant-houses.ts"
   },
   "devDependencies": {
