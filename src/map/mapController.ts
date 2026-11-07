@@ -77,6 +77,15 @@ export class MapController {
     })
   }
 
+  /** Keep the player's zoom; only re-center on them while playing. */
+  public follow(point: GeoPoint): void {
+    this.map.setCenter([point.lng, point.lat])
+  }
+
+  public getZoom(): number {
+    return this.map.getZoom()
+  }
+
   public fitToPoints(points: GeoPoint[]): void {
     if (points.length === 0) {
       return
