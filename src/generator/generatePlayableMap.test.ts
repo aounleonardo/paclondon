@@ -132,15 +132,18 @@ describe('generatePlayableMap', () => {
     expect(map.powerPellets).toEqual([])
   })
 
-  it('attaches vacant houses supplied by the caller', () => {
+  it('keeps vacant houses that sit on the generated maze and drops unreachable ones', () => {
+    const base = generatePlayableMap(viewport, { nodes: [], edges: [] })
+    const onMaze = base.nodes[0]
+    expect(onMaze).toBeDefined()
+
     const map = generatePlayableMap(viewport, { nodes: [], edges: [] }, {
       vacantHouses: [
-        { id: 'mock-1', lat: 25.04, lng: 121.5, status: 'vacant' },
+        { id: 'on-maze', lat: onMaze.lat, lng: onMaze.lng, status: 'vacant' },
+        { id: 'off-maze', lat: onMaze.lat + 0.02, lng: onMaze.lng + 0.02, status: 'vacant' },
       ],
     })
 
-    expect(map.vacantHouses).toEqual([
-      { id: 'mock-1', lat: 25.04, lng: 121.5, status: 'vacant' },
-    ])
+    expect(map.vacantHouses.map((house) => house.id)).toEqual(['on-maze'])
   })
 })

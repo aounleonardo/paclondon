@@ -1,4 +1,5 @@
 import type { GeoPoint, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, VacantProperty, Viewport } from '../types'
+import { filterReachableVacantHouses } from './filterReachableVacantHouses'
 import { simplifyRoadGraph } from './simplifyRoadGraph'
 
 interface GenerateOptions {
@@ -266,18 +267,21 @@ function prepareRoadNetwork(viewport: Viewport, roadData: RoadData): { roadData:
 export function generatePlayableMap(viewport: Viewport, roadData: RoadData, options: GenerateOptions = {}): PlayableMap {
   const prepared = prepareRoadNetwork(viewport, roadData)
   const nodes = prepared.roadData.nodes
+  const edges = prepared.roadData.edges
   const center = viewport.center
   const ghostHomeNodeIds = chooseGhostHomes(nodes, center)
   const spawnNode = chooseSpawnNode(nodes, center, ghostHomeNodeIds)
+  const vacantCandidates = (options.vacantHouses ?? []).map((house) => ({ ...house, status: 'vacant' as const }))
+  const vacantHouses = filterReachableVacantHouses(vacantCandidates, nodes, edges)
   return {
     bounds: viewport.bounds,
     center,
     nodes,
-    edges: prepared.roadData.edges,
+    edges,
     // Street pellets retired — vacant houses are the collectible objective.
     pellets: [],
     powerPellets: [],
-    vacantHouses: (options.vacantHouses ?? []).map((house) => ({ ...house, status: 'vacant' as const })),
+    vacantHouses,
     spawnNodeId: spawnNode.id,
     ghostHomeNodeIds,
     sourceMode: prepared.sourceMode,
