@@ -1,7 +1,7 @@
 import { filterReachableVacantHouses } from '../generator/filterReachableVacantHouses'
 import type { Bounds, GeoPoint, PlayableMap, SourceMode, VacantProperty, Viewport } from '../types'
 
-const DEFAULT_MAZE_URL = `${import.meta.env.BASE_URL}mazes/newspeak-house.json`
+const DEFAULT_MAZE_URL = `${import.meta.env.BASE_URL}mazes/islington.json`
 
 export interface PrecomputedMazeFile {
   id: string

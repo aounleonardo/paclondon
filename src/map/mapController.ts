@@ -20,10 +20,10 @@ const TILE_STYLE: StyleSpecification = {
   ],
 } as const
 
-/** Newspeak House, 133 Bethnal Grn Rd, London E2 7DG */
+/** Emirates Stadium area, London Borough of Islington */
 export const DEFAULT_SPAWN = {
-  lng: -0.071273,
-  lat: 51.525134,
+  lng: -0.10833,
+  lat: 51.555,
   zoom: 17,
 } as const
 

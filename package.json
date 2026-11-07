@@ -8,16 +8,23 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "precompute:maze": "npx vite-node scripts/precompute-newspeak-maze.ts"
+    "precompute:maze": "npx vite-node scripts/precompute-newspeak-maze.ts",
+    "precompute:borough": "npx vite-node scripts/precompute-borough-maze.ts",
+    "precompute:islington": "npx vite-node scripts/precompute-borough-maze.ts --borough=islington",
+    "precompute:islington:upload": "npx vite-node scripts/precompute-borough-maze.ts --borough=islington --upload",
+    "upload:vacant-houses": "npx vite-node scripts/upload-vacant-houses.ts"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "dotenv": "^18.0.9",
     "jsdom": "^29.0.1",
     "typescript": "~5.9.3",
     "vite": "^8.0.1",
     "vitest": "^4.1.2"
   },
   "dependencies": {
+    "@netlify/blobs": "^11.1.8",
+    "@netlify/functions": "^6.1.1",
     "maplibre-gl": "^5.21.1"
   }
 }
