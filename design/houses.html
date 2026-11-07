@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>House Packs</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{--night:#14122a;--night-2:#1b1838;--block-2:#3a3370;--text:#f1ecff;--muted:#a59fd0;--vacant:#b46cff;--vacant-shadow:#6a2fb3;--filled:#7ee8a2;--s1:8px;--s2:16px;--s3:24px;--s4:40px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--night);color:var(--text);font:22px/1.3 "VT323",monospace}
+.wrap{max-width:1180px;margin:0 auto;padding:var(--s4) var(--s2);display:grid;gap:var(--s4)}
+h1{font:20px/1.5 "Press Start 2P",monospace;margin:0;color:var(--vacant)}
+h2{font:12px/1.6 "Press Start 2P",monospace;margin:0}
+p{margin:0;color:var(--muted)}
+header{display:grid;gap:var(--s2)}
+.modes{display:flex;gap:var(--s1);flex-wrap:wrap}
+button{font:11px "Press Start 2P",monospace;padding:12px 14px;border:0;cursor:pointer;background:var(--night-2);color:var(--text);box-shadow:inset 0 0 0 3px var(--block-2)}
+button[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--vacant)}
+button.primary{background:var(--vacant);color:var(--night);box-shadow:4px 4px 0 var(--vacant-shadow)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--s3)}
+.card{background:var(--night-2);box-shadow:inset 0 0 0 3px var(--block-2);display:grid;grid-template-rows:auto 1fr}
+.card.picked{box-shadow:inset 0 0 0 3px var(--filled)}
+.thumbs{display:grid;gap:3px;background:#121212;padding:3px}
+.thumbs img{width:100%;display:block;image-rendering:pixelated;transition:filter .3s}
+.body{padding:var(--s2);display:grid;gap:var(--s1);align-content:start}
+.lic{justify-self:start;font-size:18px;padding:0 8px;background:#1f3b2c;color:var(--filled)}
+.meta{color:var(--muted);font-size:20px}
+.body label{display:flex;gap:var(--s1);align-items:center;cursor:pointer}
+.body a{color:var(--vacant)}
+/* tint previews to show the empty / filled idea */
+body.empty .thumbs img{filter:grayscale(1) sepia(1) saturate(4) hue-rotate(225deg) brightness(.9)}
+body.filled .thumbs img{filter:grayscale(1) sepia(1) saturate(3.5) hue-rotate(75deg) brightness(1.05)}
+pre{font:14px/1.5 ui-monospace,Menlo,monospace;background:#121212;padding:var(--s2);margin:0;white-space:pre-wrap;box-shadow:inset 0 0 0 3px var(--block-2)}
+.out{display:grid;gap:var(--s2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>House packs</h1>
+    <p>Free, public domain (CC0) pixel house packs. Licences checked on each pack's page. Tick the one to use. The buttons tint the previews to show the empty (purple) and filled (green) idea. The real versions get made from one house in the pack you pick.</p>
+    <div class="modes" role="group" aria-label="Preview tint">
+      <button data-mode="" aria-pressed="true">Original</button>
+      <button data-mode="empty" aria-pressed="false">Empty (purple)</button>
+      <button data-mode="filled" aria-pressed="false">Filled (green)</button>
+    </div>
+  </header>
+  <div class="grid" id="cards"></div>
+  <div class="out">
+    <h2>Your pick</h2>
+    <pre id="out">Nothing ticked yet.</pre>
+    <button class="primary" id="copy" style="justify-self:start">Copy for dev</button>
+  </div>
+</div>
+<script>
+const PACKS=[
+ {id:'metro',name:'MetroCity Environment',by:'JIK-A-4',url:'https://jik-a-4.itch.io/metro',imgs:['https://img.itch.zone/aW1nLzE0NDc0Mzc3LnBuZw==/original/eyo1JY.png'],
+  meta:'Top-down houses, buildings, tiles, trees, roads. Same author as our characters, so the styles match. The page only shows a cover image and the pack would not download automatically, so open the page to see the houses.',rec:true},
+ {id:'urban',name:'RPG Urban Kit',by:'Kenney',url:'https://kenney-assets.itch.io/rpg-urban-kit',imgs:['assets/house-previews/rpg-urban-kit.png','https://img.itch.zone/aW1hZ2UvMTE2MzY5Mi82NzY5NTY1LnBuZw==/original/fQirtN.png'],
+  meta:'480+ city tiles: buildings, roads, vehicles, plus 6 walking characters. Full tile sheet shown above (16px tiles), plus a sample scene.'},
+ {id:'pico',name:'Pico-8 City',by:'Kenney',url:'https://kenney-assets.itch.io/pico-8-city',imgs:['assets/house-previews/pico-8-city.png'],
+  meta:'350+ tiny city sprites made for the Pico-8 console. Full tile sheet shown above (8px tiles). Probably too small next to our 32px characters.'}
+];
+let pick=null; try{pick=localStorage.getItem('eh-house')}catch(e){}
+const cards=document.getElementById('cards');
+PACKS.forEach(p=>{
+  const c=document.createElement('div'); c.className='card'; c.dataset.id=p.id;
+  c.innerHTML=`<div class="thumbs">${p.imgs.map(u=>`<img src="${u}" alt="${p.name} preview" loading="lazy">`).join('')}</div>
+  <div class="body"><h2>${p.name}${p.rec?' (my pick)':''}</h2><span class="meta">by ${p.by}</span><span class="lic">CC0</span>
+  <span class="meta">${p.meta}</span>
+  <label><input type="radio" name="pick" value="${p.id}" ${pick===p.id?'checked':''}> Use for houses</label>
+  <a href="${p.url}" target="_blank" rel="noopener">Open pack page</a></div>`;
+  c.querySelector('input').onchange=()=>{pick=p.id;try{localStorage.setItem('eh-house',pick)}catch(e){};render();};
+  cards.appendChild(c);
+});
+function render(){
+  document.querySelectorAll('.card').forEach(c=>c.classList.toggle('picked',c.dataset.id===pick));
+  const p=PACKS.find(x=>x.id===pick);
+  document.getElementById('out').textContent=p?`Houses: ${p.name} by ${p.by} (CC0)\n${p.url}\nMake two versions of one house: purple = empty, green = filled.`:'Nothing ticked yet.';
+}
+render();
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{
+  document.body.className=b.dataset.mode;
+  document.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+});
+document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('out').textContent).then(()=>{const b=document.getElementById('copy');b.textContent='Copied';setTimeout(()=>b.textContent='Copy for dev',1200)});
+</script>
+</body>
+</html>

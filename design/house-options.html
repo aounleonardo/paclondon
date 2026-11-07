@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>House Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{--night:#14122a;--night-2:#1b1838;--block-2:#3a3370;--text:#f1ecff;--muted:#a59fd0;--vacant:#b46cff;--vacant-shadow:#6a2fb3;--filled:#7ee8a2;--day:#a9c983;--dusk:#1b1838;--s1:8px;--s2:16px;--s3:24px;--s4:40px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--night);color:var(--text);font:22px/1.3 "VT323",monospace}
+.wrap{max-width:1180px;margin:0 auto;padding:var(--s4) var(--s2);display:grid;gap:var(--s4)}
+h1{font:20px/1.5 "Press Start 2P",monospace;margin:0;color:var(--vacant)}
+h2{font:12px/1.6 "Press Start 2P",monospace;margin:0}
+p{margin:0;color:var(--muted)}
+section,header{display:grid;gap:var(--s2)}
+.row{display:flex;gap:var(--s1);flex-wrap:wrap}
+button{font:11px "Press Start 2P",monospace;padding:12px 14px;border:0;cursor:pointer;background:var(--night-2);color:var(--text);box-shadow:inset 0 0 0 3px var(--block-2)}
+button[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--vacant)}
+button.primary{background:var(--vacant);color:var(--night);box-shadow:4px 4px 0 var(--vacant-shadow)}
+.styles{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:var(--s3)}
+.style{background:var(--night-2);box-shadow:inset 0 0 0 3px var(--block-2);padding:var(--s2);display:grid;gap:var(--s2);cursor:pointer;text-align:left;font:inherit;color:inherit}
+.style[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--filled)}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s1);background:var(--ground);padding:var(--s2) var(--s1);transition:background .3s}
+.trio figure{margin:0;display:grid;gap:4px;justify-items:center}
+.trio img{width:100%;max-width:120px;image-rendering:pixelated}
+figcaption{font-size:18px;color:var(--night)}
+body.dark figcaption{color:var(--text)}
+.houses{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--s2)}
+.house{background:var(--ground);padding:var(--s2) var(--s1) var(--s1);display:grid;gap:var(--s1);justify-items:center;box-shadow:inset 0 0 0 3px transparent;transition:background .3s}
+.house.on{box-shadow:inset 0 0 0 3px var(--vacant)}
+.house img{width:100%;max-width:120px;image-rendering:pixelated}
+.house label{display:flex;gap:6px;align-items:center;cursor:pointer;color:var(--night);background:var(--text);padding:0 8px}
+pre{font:14px/1.5 ui-monospace,Menlo,monospace;background:#121212;padding:var(--s2);margin:0;white-space:pre-wrap;box-shadow:inset 0 0 0 3px var(--block-2)}
+body{--ground:var(--day)}
+body.dark{--ground:#2a2550}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>House options</h1>
+    <p>Real houses from MetroCity Environment by JIK-A-4 (CC0, same artist as our characters). Pick how an empty and a filled house should look, then tick which houses go in the game.</p>
+    <div class="row" role="group" aria-label="Map background">
+      <button data-bg="" aria-pressed="true">On light map</button>
+      <button data-bg="dark" aria-pressed="false">On dark map</button>
+    </div>
+  </header>
+
+  <section>
+    <h2>1. Style</h2>
+    <div class="styles" id="styles"></div>
+  </section>
+
+  <section>
+    <h2>2. Houses</h2>
+    <p>Shown as empty (purple) in the style you picked. Untick any you don't want.</p>
+    <div class="houses" id="houses"></div>
+  </section>
+
+  <section>
+    <h2>For the dev</h2>
+    <pre id="out"></pre>
+    <button class="primary" id="copy" style="justify-self:start">Copy for dev</button>
+  </section>
+</div>
+<script>
+const DIR='assets/houses/';
+const STYLES=[
+  {id:'roof',name:'A. Roof only',desc:'House keeps its look, only the roof changes colour. Easiest to read as a real street.'},
+  {id:'tint',name:'B. Whole house',desc:'The whole house turns purple or green. Strongest signal, least detail.'},
+  {id:'glow',name:'C. Outline',desc:'Original colours with a purple or green outline. Subtle.'}
+];
+const N=7;
+const S={style:'roof',houses:[1,2,3,4,5,6,7]};
+try{Object.assign(S,JSON.parse(localStorage.getItem('eh-house-opts')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('eh-house-opts',JSON.stringify(S))}catch(e){}};
+
+const st=document.getElementById('styles');
+STYLES.forEach(s=>{
+  const b=document.createElement('button'); b.className='style'; b.dataset.id=s.id;
+  b.innerHTML=`<h2>${s.name}</h2><p>${s.desc}</p>
+  <div class="trio">
+    <figure><img src="${DIR}house_4.png" alt=""><figcaption>Normal</figcaption></figure>
+    <figure><img src="${DIR}house_4_empty_${s.id}.png" alt=""><figcaption>Empty</figcaption></figure>
+    <figure><img src="${DIR}house_4_filled_${s.id}.png" alt=""><figcaption>Filled</figcaption></figure>
+  </div>`;
+  b.onclick=()=>{S.style=s.id;save();render();};
+  st.appendChild(b);
+});
+const hs=document.getElementById('houses');
+for(let i=1;i<=N;i++){
+  const d=document.createElement('div'); d.className='house'; d.dataset.i=i;
+  d.innerHTML=`<img alt="House ${i}"><label><input type="checkbox"> House ${i}</label>`;
+  d.querySelector('input').onchange=e=>{S.houses=e.target.checked?[...new Set([...S.houses,i])].sort():S.houses.filter(x=>x!==i);save();render();};
+  hs.appendChild(d);
+}
+function render(){
+  document.querySelectorAll('.style').forEach(b=>b.setAttribute('aria-pressed',b.dataset.id===S.style));
+  document.querySelectorAll('.house').forEach(d=>{
+    const i=+d.dataset.i, on=S.houses.includes(i);
+    d.querySelector('img').src=`${DIR}house_${i}_empty_${S.style}.png`;
+    d.querySelector('input').checked=on; d.classList.toggle('on',on);
+  });
+  const s=STYLES.find(x=>x.id===S.style);
+  document.getElementById('out').textContent=
+`Style: ${s.name}
+Houses: ${S.houses.map(i=>'house_'+i).join(', ')||'none'}
+Files (assets/houses/): house_N_empty_${S.style}.png when empty, house_N_filled_${S.style}.png when filled
+Source: MetroCity Environment by JIK-A-4, CC0, https://jik-a-4.itch.io/metro`;
+}
+render();
+document.querySelectorAll('[data-bg]').forEach(b=>b.onclick=()=>{
+  document.body.classList.toggle('dark',b.dataset.bg==='dark');
+  document.querySelectorAll('[data-bg]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+});
+document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('out').textContent).then(()=>{const b=document.getElementById('copy');b.textContent='Copied';setTimeout(()=>b.textContent='Copy for dev',1200)});
+</script>
+</body>
+</html>

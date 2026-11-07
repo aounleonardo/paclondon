@@ -46,3 +46,24 @@ The game's own canvas (sprites, dots) is separate and unaffected.
 
 - Borough empty-home counts (borough screen) and the 2010 / now stats (clear screen) come from the vacancy dataset.
 - Score, time, lives on the play HUD are static.
+
+## tiny.london version (Tower Hamlets)
+
+Open `handoff/screens-tinylondon.html`. Play goes straight into Tower Hamlets, starting at Whitechapel.
+
+- The map is tiny.london's own page in an iframe (their UI and credits stay). It states no licence: OK for the hackathon demo, ask the author (Boris Starkov) before publishing publicly.
+- Characters can only walk on roads: `handoff/tower-hamlets-data.js` holds ~29k OpenStreetMap road segments, ~12.7k homes and 341 postcodes for the whole borough, projected into tiny.london map pixels with the projection the site publishes at https://tiny.london/map.json. Measured zoom for `?q=<postcode>` views: 0.482 screen px per map px (same at any window size).
+- The page can only be pointed somewhere by loading `?q=<postcode>`, so the borough is explored screen by screen: walking off an edge reloads the map on the nearest postcode in that direction ("Walking on..." screen for a few seconds).
+- 20 empty homes spread across the borough (`TOTAL_HOMES` in the script), placed on real residential buildings next to a road. A bar at the top points to the nearest one.
+- Dark map is on by default (a CSS filter on the iframe), toggle bottom right.
+
+## Houses
+
+- `house-options.html`: pick the empty/filled style. Chosen: B, whole house.
+- `assets/houses/house_N_empty_tint.png` and `house_N_filled_tint.png` (N = 1..7). Also `_roof` and `_glow` variants.
+- Source: MetroCity Environment by JIK-A-4, CC0, https://jik-a-4.itch.io/metro. `assets/make_houses.py` regenerates them.
+- `houses.html`: the pack shortlist (MetroCity Environment, Kenney RPG Urban Kit, Kenney Pico-8 City, all CC0).
+
+## Data credits
+
+- Roads and homes: © OpenStreetMap contributors (ODbL). Postcodes: postcodes.io (Open Government Licence).

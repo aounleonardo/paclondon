@@ -1,0 +1,96 @@
+{
+ "source": "MetroCity Free External Top Down Environment Asset Pack by JIK-A-4, CC0, https://jik-a-4.itch.io/metro",
+ "houses": [
+  {
+   "name": "house_1",
+   "size": [
+    177,
+    120
+   ],
+   "box": [
+    1861,
+    209,
+    2022,
+    313
+   ]
+  },
+  {
+   "name": "house_2",
+   "size": [
+    184,
+    153
+   ],
+   "box": [
+    2629,
+    174,
+    2797,
+    311
+   ]
+  },
+  {
+   "name": "house_3",
+   "size": [
+    175,
+    139
+   ],
+   "box": [
+    3400,
+    188,
+    3559,
+    311
+   ]
+  },
+  {
+   "name": "house_4",
+   "size": [
+    175,
+    139
+   ],
+   "box": [
+    328,
+    572,
+    487,
+    695
+   ]
+  },
+  {
+   "name": "house_5",
+   "size": [
+    173,
+    139
+   ],
+   "box": [
+    1093,
+    574,
+    1250,
+    697
+   ]
+  },
+  {
+   "name": "house_6",
+   "size": [
+    175,
+    139
+   ],
+   "box": [
+    1864,
+    572,
+    2023,
+    695
+   ]
+  },
+  {
+   "name": "house_7",
+   "size": [
+    175,
+    139
+   ],
+   "box": [
+    2632,
+    572,
+    2791,
+    695
+   ]
+  }
+ ]
+}

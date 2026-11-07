@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Empty Homes tiny.london</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.21.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@5.21.1/dist/maplibre-gl.js"></script>
+<script src="pixel-map-style.js"></script>
+<script src="tower-hamlets-data.js"></script>
+<style>
+/* Style A: Night bus. All colours here, nowhere else. */
+:root{
+  --night:#14122a; --night-2:#1b1838; --block:#2a2550; --block-2:#3a3370;
+  --text:#f1ecff; --muted:#a59fd0;
+  --vacant:#b46cff; --vacant-shadow:#6a2fb3; --filled:#7ee8a2; --danger:#ff6b7a;
+  --s1:8px; --s2:16px; --s3:24px; --s4:40px;
+  --head:"Press Start 2P",monospace; --body:"VT323",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--night);color:var(--text);font:24px/1.3 var(--body)}
+.screen{position:fixed;inset:0;display:none;align-content:center;justify-items:center;gap:var(--s3);padding:var(--s4) var(--s2);text-align:center;overflow:auto}
+.screen.on{display:grid}
+h1{font:28px/1.6 var(--head);color:var(--vacant);margin:0}
+h2{font:16px/1.6 var(--head);margin:0}
+p{margin:0;max-width:34ch}
+.muted{color:var(--muted)}
+.ok{color:var(--filled)}
+.btns{display:grid;gap:var(--s2);width:100%;max-width:280px}
+.row{display:flex;gap:var(--s2);flex-wrap:wrap;justify-content:center}
+button{font:12px/1 var(--head);padding:16px;border:0;cursor:pointer;background:var(--vacant);color:var(--night);box-shadow:4px 4px 0 var(--vacant-shadow)}
+button:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--vacant-shadow)}
+button.ghost{background:transparent;color:var(--text);box-shadow:inset 0 0 0 3px var(--text)}
+.sky{position:fixed;left:0;right:0;bottom:0;height:64px;background:repeating-linear-gradient(90deg,var(--block) 0 18px,var(--night) 18px 22px,var(--block-2) 22px 40px,var(--night) 40px 44px);pointer-events:none}
+
+/* sprites: sheet 768x32, 6 frames per direction, shown at 4x */
+.sprite{width:128px;height:128px;image-rendering:pixelated;background-size:3072px 128px;background-repeat:no-repeat;animation:walk .7s steps(6) infinite}
+.sprite.sm{width:64px;height:64px;background-size:1536px 64px;animation-name:walk-sm}
+@keyframes walk{from{background-position:0 0}to{background-position:-768px 0}}
+@keyframes walk-sm{from{background-position:0 0}to{background-position:-384px 0}}
+
+.pick{display:grid;gap:var(--s1);justify-items:center;padding:var(--s2);background:var(--night-2);box-shadow:inset 0 0 0 3px var(--block-2);cursor:pointer;min-width:160px}
+.pick[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--vacant);background:var(--block)}
+.pick .sprite{animation-play-state:paused}
+.pick[aria-pressed="true"] .sprite,.pick:hover .sprite{animation-play-state:running}
+
+.panel{background:var(--night-2);box-shadow:inset 0 0 0 3px var(--block-2);padding:var(--s3);display:grid;gap:var(--s2);max-width:560px;width:100%;text-align:left}
+.panel p{max-width:none}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:var(--s1) var(--s2);align-items:center}
+.key{font:10px var(--head);padding:8px 10px;box-shadow:inset 0 0 0 2px var(--text);white-space:nowrap}
+.dot{display:inline-block;width:14px;height:14px;vertical-align:middle;margin-right:6px}
+.chasers{display:flex;gap:var(--s3);justify-content:center;flex-wrap:wrap}
+.chasers div{display:grid;justify-items:center;gap:4px}
+
+.boroughs{display:grid;gap:var(--s1);width:100%;max-width:460px}
+.boroughs button{display:flex;justify-content:space-between;align-items:center;text-align:left;font-size:11px;padding:14px 16px;box-shadow:inset 0 0 0 3px var(--block-2);background:var(--night-2);color:var(--text)}
+.boroughs button[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--vacant);background:var(--block)}
+.boroughs span:last-child{font:20px var(--body);color:var(--vacant)}
+
+/* play */
+#s-play{padding:0;gap:0;align-content:stretch;justify-items:stretch}
+#map{position:absolute;inset:0}
+#map .maplibregl-canvas{image-rendering:pixelated}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:var(--s2);padding:var(--s2);background:linear-gradient(var(--night),transparent);font:12px var(--head);z-index:2}
+.meter{flex:1;max-width:320px;height:14px;box-shadow:inset 0 0 0 2px var(--text);position:relative}
+.meter i{position:absolute;inset:3px auto 3px 3px;width:34%;background:var(--filled)}
+.toast[hidden]{display:none}
+.house{position:absolute;width:56px;margin:-60px 0 0 -28px;z-index:1;image-rendering:pixelated;opacity:0;transition:opacity .3s;pointer-events:none}
+.house.near{opacity:1;animation:bob 1s steps(2) infinite}
+.house.done{opacity:1;animation:none}
+@keyframes bob{50%{transform:translateY(-4px)}}
+@keyframes blink{50%{opacity:.35}}
+.ring{position:absolute;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;opacity:.85;z-index:1;pointer-events:none}
+.actor{position:absolute;z-index:1;margin:-52px 0 0 -32px;animation:none!important}
+#me{z-index:2}
+.toast{position:absolute;bottom:var(--s3);left:50%;transform:translateX(-50%);background:var(--night);box-shadow:inset 0 0 0 3px var(--filled);padding:12px 16px;z-index:2;white-space:nowrap}
+.overlay{position:absolute;inset:0;background:rgba(20,18,42,.86);display:grid;align-content:center;justify-items:center;gap:var(--s3);padding:var(--s4) var(--s2);text-align:center;z-index:3}
+.overlay[hidden]{display:none}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2);width:100%;max-width:460px}
+.stat{background:var(--night-2);box-shadow:inset 0 0 0 3px var(--block-2);padding:var(--s2);display:grid;gap:4px}
+.stat b{font:16px var(--head);color:var(--filled)}
+.hearts{font:20px var(--head);color:var(--danger);letter-spacing:6px}
+.ph{color:var(--muted);font-size:18px}
+
+/* dev nav (remove in game) */
+.devnav{position:fixed;left:8px;top:50%;transform:translateY(-50%);z-index:9;display:flex;flex-direction:column;gap:4px}
+.devnav button{font:9px var(--head);padding:6px 8px;box-shadow:none;background:var(--block-2);color:var(--text)}
+</style>
+</head>
+<body>
+
+<!-- 1. Landing -->
+<section class="screen on" id="s-landing">
+  <h1>Empty<br>Homes</h1>
+  <p class="ok">Thousands of London homes sit empty.<br>Find them. Fill them. Don't get caught.</p>
+  <div class="btns">
+    <button data-go="s-character">Play</button>
+    <button class="ghost" data-go="s-rules">How it works</button>
+  </div>
+  <p class="muted" style="font-size:18px">Made for the Newhouse hackathon</p>
+  <div class="sky"></div>
+</section>
+
+<!-- 2+3. Enter game / choose character -->
+<section class="screen" id="s-character">
+  <h2>Choose your player</h2>
+  <div class="row" id="players"></div>
+  <div class="btns"><button data-go="s-story">Next</button></div>
+</section>
+
+<!-- 4. Story -->
+<section class="screen" id="s-story">
+  <div class="panel">
+    <h2>The story</h2>
+    <p>Across your borough, homes have stood empty for six months or more. Nobody lives in them. Nobody is selling them.</p>
+    <p>The council can step in, but only if someone reports them.</p>
+    <p class="ok">That someone is you.</p>
+  </div>
+  <div class="btns"><button data-go="s-rules">Next</button></div>
+</section>
+
+<!-- 5. Rules / controls -->
+<section class="screen" id="s-rules">
+  <div class="panel">
+    <h2>How to play</h2>
+    <div class="keys">
+      <span class="key">Arrows / WASD</span><span>Run the streets</span>
+      <span class="key">Stand still 1s</span><span>Report the empty home next to you</span>
+    </div>
+    <p><span class="dot" style="background:var(--vacant)"></span>Purple = empty. It blinks when you get close.</p>
+    <p><span class="dot" style="background:var(--filled)"></span>Green = reported and filled.</p>
+    <p>Fill every empty home to clear the borough. You have 3 lives.</p>
+    <h2>Who's chasing you</h2>
+    <div class="chasers" id="chasers"></div>
+  </div>
+  <div class="btns"><button data-go="s-borough">Got it</button></div>
+</section>
+
+<!-- 6. Choose borough -->
+<section class="screen" id="s-borough">
+  <h2>Pick a borough</h2>
+  <div class="boroughs" id="boroughs"></div>
+  <p class="ph">Empty home counts come from the vacancy dataset. Placeholder until wired.</p>
+  <div class="btns"><button data-go="s-play" id="start">Start</button></div>
+</section>
+
+<!-- 7. Play (+ 7a clear, 7b game over, 7c lost life overlays) -->
+<section class="screen" id="s-play">
+  <div id="map"></div>
+  <div class="hud">
+    <span class="hearts" id="hearts">♥♥♥</span>
+    <div class="meter" title="Homes filled"><i></i></div>
+    <span id="count">0 / 0</span>
+  </div>
+  <div id="world"></div>
+  <div class="toast" id="toast" hidden>Reporting... hold still</div>
+  <div class="overlay" id="travel" hidden style="background:rgba(20,18,42,.55)"><h2>Walking on...</h2><p id="travel-to"></p></div>
+  <div id="compass" hidden style="position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:2;display:flex;gap:8px;align-items:center;background:var(--night);padding:4px 10px;box-shadow:inset 0 0 0 2px var(--vacant);font-size:18px">
+    <span id="compass-arrow" style="display:inline-block;color:var(--vacant);font:14px var(--head)">&#10140;</span><span id="compass-text"></span></div>
+  <div class="toast" id="hint" style="box-shadow:inset 0 0 0 3px var(--vacant)">Arrow keys or WASD to move</div>
+
+  <div class="overlay" id="o-clear" hidden>
+    <h1 class="ok" style="color:var(--filled)">Borough<br>cleared</h1>
+    <p id="clear-name">Hackney</p>
+    <div class="stats">
+      <div class="stat"><b id="clear-n">0</b><span>homes filled</span></div>
+      <div class="stat"><b id="clear-t">0:00</b><span>your time</span></div>
+      <div class="stat"><b>n/a</b><span>empty homes in 2010</span></div>
+      <div class="stat"><b>n/a</b><span>empty homes now</span></div>
+    </div>
+    <p class="ph">Borough history comes from the vacancy dataset. Placeholder until wired.</p>
+    <div class="btns">
+      <button data-go="s-borough">Next borough</button>
+      <button class="ghost" data-go="s-borough">New game</button>
+      <button class="ghost" data-go="s-landing">Quit</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="o-life" hidden>
+    <h2>Caught!</h2>
+    <p class="hearts" id="life-hearts">♥♥<span style="opacity:.25">♥</span></p>
+    <p id="life-text">2 lives left.</p>
+    <div class="btns">
+      <button id="keep">Keep going</button>
+      <button class="ghost" data-go="s-borough">New game</button>
+      <button class="ghost" data-go="s-landing">Quit</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="o-over" hidden>
+    <h1 style="color:var(--danger)">Game<br>over</h1>
+    <p id="over-text">You filled 0 empty homes.</p>
+    <div class="btns">
+      <button data-go="s-borough">New game</button>
+      <button class="ghost" data-go="s-landing">Quit</button>
+    </div>
+  </div>
+</section>
+
+<nav class="devnav" aria-label="Preview screens">
+  <button data-go="s-landing">1 Landing</button>
+  <button data-go="s-character">2-3 Character</button>
+  <button data-go="s-story">4 Story</button>
+  <button data-go="s-rules">5 Rules</button>
+  <button data-go="s-borough">6 Borough</button>
+  <button data-go="s-play">7 Play</button>
+  <button data-go="s-play" data-overlay="o-clear">7a Clear</button>
+  <button data-go="s-play" data-overlay="o-over">7b Over</button>
+  <button data-go="s-play" data-overlay="o-life">7c Life</button>
+</nav>
+
+<script>
+const SHEETS='../assets/characters/';
+const PLAYERS=['player_1','player_2','player_3'];
+const CHASERS=[['politician','The Politician'],['landlord','The Landlord'],['nimby','The NIMBY']];
+// [name, lng, lat] town centres. Counts are placeholders.
+const BOROUGHS=[['Tower Hamlets',-0.0612,51.5194]];
+let player='player_1', borough=0, map;
+
+const pl=document.getElementById('players');
+PLAYERS.forEach((p,i)=>{
+  const b=document.createElement('div'); b.className='pick'; b.setAttribute('role','button'); b.tabIndex=0;
+  b.setAttribute('aria-pressed',p===player);
+  b.innerHTML=`<div class="sprite" style="background-image:url(${SHEETS}${p}.png)"></div><span>Player ${i+1}</span>`;
+  b.onclick=()=>{player=p;pl.querySelectorAll('.pick').forEach(x=>x.setAttribute('aria-pressed',x===b));};
+  pl.appendChild(b);
+});
+const ch=document.getElementById('chasers');
+CHASERS.forEach(([f,n])=>{ch.insertAdjacentHTML('beforeend',`<div><div class="sprite sm" style="background-image:url(${SHEETS}${f}.png)"></div><span>${n}</span></div>`)});
+const bl=document.getElementById('boroughs');
+BOROUGHS.forEach(([n],i)=>{
+  const b=document.createElement('button'); b.setAttribute('aria-pressed',i===borough);
+  b.innerHTML=`<span>${n}</span><span>?? empty</span>`;
+  b.onclick=()=>{borough=i;bl.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));};
+  bl.appendChild(b);
+});
+
+function show(id,overlay){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));
+  document.querySelectorAll('.overlay').forEach(o=>o.hidden=o.id!==overlay);
+  if(id==='s-play'){
+    document.getElementById('clear-name').textContent=BOROUGHS[borough][0];
+    const c=[BOROUGHS[borough][1],BOROUGHS[borough][2]];
+    if(!overlay) G.running=false;
+    if(!map){
+      map=new maplibregl.Map({container:'map',style:makePixelMapStyle('night'),pixelRatio:0.33,center:c,zoom:17,interactive:false});
+      map.once('idle',()=>{ if(!overlay) newGame(); });
+    } else {
+      map.resize(); map.jumpTo({center:c});
+      if(!overlay) map.once('idle',newGame);
+    }
+  } else G.running=false;
+}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-go],[data-overlay]'); if(!t) return;
+  if(t.dataset.go) show(t.dataset.go,t.dataset.overlay||'');
+  else document.querySelectorAll('.overlay').forEach(o=>o.hidden=o.id!==t.dataset.overlay);
+});
+
+/* ---------- demo game (screen space; the real game uses the fork's road graph) ---------- */
+const ROADS=['minor','major','main'];
+const PLAYER_SPEED=2.4, CHASER_SPEED=1.25, NEAR=46, REVEAL=230, HOLD_MS=1000, HOUSES=8, CATCH=22;
+const G={running:false}; let F=1, lastT=0;
+const keys={};
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)){keys[k]=true;e.preventDefault();}});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+const W=()=>innerWidth, H=()=>innerHeight;
+
+let dark=true;
+function applyDark(){
+  if(tinyFrame) tinyFrame.style.filter=dark?'brightness(.4) saturate(.65) contrast(1.15) sepia(.25) hue-rotate(200deg)':'none';
+  document.getElementById('darkbtn').textContent=dark?'Light map':'Dark map';
+}
+function onRoad(x,y){
+  if(x<8||y<70||x>W()-8||y>H()-8) return false;
+  return map.queryRenderedFeatures([[x-3,y-3],[x+3,y+3]],{layers:ROADS}).length>0;
+}
+function nearestRoad(x,y){
+  for(let r=0;r<400;r+=6) for(let a=0;a<16;a++){
+    const px=x+Math.cos(a/16*6.283)*r, py=y+Math.sin(a/16*6.283)*r;
+    if(onRoad(px,py)) return [px,py];
+  }
+  return [x,y];
+}
+function makeActor(sheet){
+  const el=document.createElement('div'); el.className='actor sprite sm';
+  el.style.backgroundImage=`url(${SHEETS}${sheet}.png)`;
+  document.getElementById('world').appendChild(el);
+  return {el,x:0,y:0,dir:0,frame:0,t:0};
+}
+function draw(a,moving){
+  if(moving){a.t+=F; if(a.t>=6){a.t=0;}; if(a.t<F) a.frame=(a.frame+1)%6;} else a.frame=0;
+  a.el.style.left=a.x+'px'; a.el.style.top=a.y+'px';
+  a.el.style.backgroundPosition=`${-(a.dir*6+a.frame)*64}px 0`;
+}
+const DIRV=[[0,1],[1,0],[0,-1],[-1,0]]; // down,right,up,left (sheet order)
+function step(a,dx,dy,speed){
+  const nx=a.x+dx*speed*F, ny=a.y+dy*speed*F;
+  if(onRoad(nx,ny)){a.x=nx;a.y=ny;return true;}
+  return false;
+}
+function placeHouses(){
+  const out=[]; let tries=0;
+  while(out.length<HOUSES && tries<4000){
+    tries++;
+    const x=60+Math.random()*(W()-120), y=110+Math.random()*(H()-180);
+    if(!map.queryRenderedFeatures([x,y],{layers:['building']}).length) continue;
+    if(onRoad(x,y)) continue;
+    // must be reachable: a road within NEAR-10 px
+    let ok=false; for(let a=0;a<12&&!ok;a++){ if(onRoad(x+Math.cos(a/12*6.283)*(NEAR-12),y+Math.sin(a/12*6.283)*(NEAR-12))) ok=true; }
+    if(!ok) continue;
+    if(out.some(h=>Math.hypot(h.x-x,h.y-y)<140)) continue;
+    if(Math.hypot(x-W()/2,y-H()/2)<120) continue;
+    out.push({x,y,hold:0,done:false});
+  }
+  return out;
+}
+function newGame(){
+  const world=document.getElementById('world'); world.innerHTML='';
+  G.lives=3; G.filled=0; G.start=performance.now();
+  G.houses=placeHouses();
+  G.houses.forEach(h=>{
+    h.kind=h.kind||1+Math.floor(Math.random()*7);
+    h.el=document.createElement('img'); h.el.className='house'; h.el.alt=''; h.el.src=`../assets/houses/house_${h.kind}_empty_tint.png`; h.el.style.left=h.x+'px'; h.el.style.top=h.y+'px'; world.appendChild(h.el);
+    h.ring=document.createElement('div'); h.ring.className='ring'; h.ring.style.left=h.x+'px'; h.ring.style.top=h.y+'px'; h.ring.hidden=true; world.appendChild(h.ring);
+  });
+  G.me=makeActor(player); G.me.el.id='me';
+  G.chasers=CHASERS.map(([f])=>makeActor(f));
+  resetPositions(); hud();
+  document.getElementById('hint').hidden=false; setTimeout(()=>document.getElementById('hint').hidden=true,3500);
+  G.running=true; if(!G.loop){G.loop=true; requestAnimationFrame(tick);}
+}
+function resetPositions(){
+  [G.me.x,G.me.y]=nearestRoad(W()/2,H()/2);
+  const corners=[[60,110],[W()-60,110],[W()-60,H()-60]];
+  G.chasers.forEach((c,i)=>{[c.x,c.y]=nearestRoad(...corners[i]); c.wander=0; draw(c,false);});
+  draw(G.me,false);
+}
+function hud(){
+  document.getElementById('count').textContent=`${G.filled} / ${G.houses.length}`;
+  document.querySelector('.meter i').style.width=`calc(${G.houses.length?G.filled/G.houses.length*100:0}% - 6px)`;
+  document.getElementById('hearts').innerHTML='♥'.repeat(G.lives)+`<span style="opacity:.25">${'♥'.repeat(3-G.lives)}</span>`;
+}
+function tick(t){
+  requestAnimationFrame(tick);
+  F=Math.min(3,(t-(lastT||t))/16.7)||1; lastT=t;
+  if(!G.running) return;
+  const me=G.me;
+  // player: try desired direction, keep heading if blocked
+  let want=null;
+  if(keys.arrowup||keys.w) want=2; else if(keys.arrowdown||keys.s) want=0;
+  else if(keys.arrowleft||keys.a) want=3; else if(keys.arrowright||keys.d) want=1;
+  let moved=false;
+  if(want!==null){ me.dir=want; moved=step(me,...DIRV[want],PLAYER_SPEED)
+    // slide along slightly diagonal roads
+    || step(me,DIRV[want][0]+DIRV[want][1]*0.7,DIRV[want][1]+DIRV[want][0]*0.7,PLAYER_SPEED*0.8)
+    || step(me,DIRV[want][0]-DIRV[want][1]*0.7,DIRV[want][1]-DIRV[want][0]*0.7,PLAYER_SPEED*0.8); }
+  draw(me,moved);
+
+  // chasers: head for the player, wander when blocked
+  G.chasers.forEach(c=>{
+    const dx=me.x-c.x, dy=me.y-c.y;
+    const order=Math.abs(dx)>Math.abs(dy)?[dx>0?1:3,dy>0?0:2]:[dy>0?0:2,dx>0?1:3];
+    let ok=false;
+    if(c.wander>0){ c.wander--; ok=step(c,...DIRV[c.dir],CHASER_SPEED); if(!ok) c.dir=Math.floor(Math.random()*4); }
+    else for(const d of order){ if(step(c,...DIRV[d],CHASER_SPEED)){c.dir=d;ok=true;break;} }
+    if(!ok && c.wander<=0){ c.dir=Math.floor(Math.random()*4); c.wander=40+Math.random()*60; }
+    draw(c,ok);
+    if(Math.hypot(me.x-c.x,me.y-c.y)<CATCH) caught();
+  });
+  if(!G.running) return;
+
+  // houses: reveal when near, fill after HOLD_MS in range
+  let reporting=false;
+  G.houses.forEach(h=>{
+    if(h.done) return;
+    const d=Math.hypot(me.x-h.x,me.y-h.y);
+    h.el.classList.toggle('near',d<REVEAL);
+    if(d<NEAR){ h.hold+=16.7*F; reporting=true; } else h.hold=Math.max(0,h.hold-33*F);
+    h.ring.hidden=h.hold<=0;
+    h.ring.style.background=`conic-gradient(var(--filled) 0 ${h.hold/HOLD_MS*100}%,transparent 0)`;
+    if(h.hold>=HOLD_MS){ h.done=true; h.ring.hidden=true; h.el.className='house done'; h.el.src=`../assets/houses/house_${h.kind}_filled_tint.png`; G.filled++; hud(); }
+  });
+  document.getElementById('toast').hidden=!reporting;
+  if(G.filled===G.houses.length && G.houses.length) win();
+}
+function caught(){
+  G.running=false; G.lives--; hud();
+  if(G.lives<=0){
+    document.getElementById('over-text').textContent=`You filled ${G.filled} of ${G.houses.length} empty homes.`;
+    return showOverlay('o-over');
+  }
+  document.getElementById('life-hearts').innerHTML=document.getElementById('hearts').innerHTML;
+  document.getElementById('life-text').textContent=`${G.lives} ${G.lives===1?'life':'lives'} left.`;
+  showOverlay('o-life');
+}
+function win(){
+  G.running=false;
+  const s=Math.round((performance.now()-G.start)/1000);
+  document.getElementById('clear-n').textContent=G.filled;
+  document.getElementById('clear-t').textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  showOverlay('o-clear');
+}
+function showOverlay(id){ document.querySelectorAll('.overlay').forEach(o=>o.hidden=o.id!==id); document.getElementById('toast').hidden=true; }
+document.getElementById('keep').onclick=()=>{ showOverlay(''); resetPositions(); G.running=true; };
+</script>
+
+<script>
+/* tiny.london variant, whole of Tower Hamlets. The map is tiny.london's own page, embedded (their UI and credits
+   intact). tiny.london states no licence: fine for a hackathon demo, get the author's OK before publishing it publicly.
+   Embeds tiny.london's own page (their UI and credits intact). The page can only be pointed somewhere by
+   loading it with ?q=<postcode>, so the borough is explored screen by screen: walk off an edge and the
+   map reloads centred on the nearest postcode in that direction.
+   Roads, homes and postcodes are OpenStreetMap / postcodes.io data projected with tiny.london's published
+   projection (map.json). World units = tiny.london image pixels. Measured zoom for postcode views: 0.482. */
+const S=TH_DATA.S, START_PC='E1 1DB', TOTAL_HOMES=20, EDGE=26;
+TH_DATA.postcodes[START_PC]=[120566,56396]; // Whitechapel, measured start view
+const PCS=Object.entries(TH_DATA.postcodes);
+let tinyFrame=null, cam=null, camPc=null, mask=null, maskW=0, maskH=0, loading=false;
+// roads in world coords with bounding boxes
+const TH_ROADS=TH_DATA.roads.map(r=>{const pts=[[r[1],r[2]]];for(let k=3;k<r.length;k+=2){const q=pts[pts.length-1];pts.push([q[0]+r[k],q[1]+r[k+1]]);}
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const[x,y]of pts){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);}return{w:r[0],pts,x0,y0,x1,y1};});
+const toScreen=(x,y)=>[(x-cam[0])*S+W()/2,(y-cam[1])*S+H()/2];
+const toWorld=(x,y)=>[(x-W()/2)/S+cam[0],(y-H()/2)/S+cam[1]];
+function buildMask(){
+  maskW=W(); maskH=H();
+  const c=document.createElement('canvas'); c.width=maskW; c.height=maskH;
+  const g=c.getContext('2d'); g.strokeStyle='#fff'; g.lineCap='round'; g.lineJoin='round';
+  const [ax,ay]=toWorld(-40,-40), [bx,by]=toWorld(maskW+40,maskH+40);
+  for(const r of TH_ROADS){
+    if(r.x1<ax||r.x0>bx||r.y1<ay||r.y0>by) continue;
+    g.lineWidth=r.w; g.beginPath();
+    r.pts.forEach(([x,y],k)=>{const[sx,sy]=toScreen(x,y); k?g.lineTo(sx,sy):g.moveTo(sx,sy);});
+    g.stroke();
+  }
+  mask=g.getImageData(0,0,maskW,maskH).data;
+}
+function onRoad(x,y){
+  if(x<4||y<64||x>W()-4||y>H()-4||!cam) return false;
+  if(!mask||maskW!==W()||maskH!==H()) buildMask();
+  return mask[((y|0)*maskW+(x|0))*4+3]>0;
+}
+// road point hash (world) to check a home has a road next to it
+const RH=new Map(), CELL=60;
+for(const r of TH_ROADS) for(let k=1;k<r.pts.length;k++){const[a,b]=[r.pts[k-1],r.pts[k]];const n=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/20));
+  for(let t=0;t<=n;t++){const x=a[0]+(b[0]-a[0])*t/n,y=a[1]+(b[1]-a[1])*t/n;const key=((x/CELL)|0)+','+((y/CELL)|0);if(!RH.has(key))RH.set(key,[]);RH.get(key).push([x,y]);}}
+function roadNear(x,y,d){const cx=(x/CELL)|0,cy=(y/CELL)|0;for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){for(const[px,py]of RH.get((cx+i)+','+(cy+j))||[]){if(Math.hypot(px-x,py-y)<d)return true;}}return false;}
+function placeHouses(){
+  const homes=TH_DATA.homes.slice();
+  for(let i=homes.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[homes[i],homes[j]]=[homes[j],homes[i]];}
+  const out=[];
+  for(const [wx,wy] of homes){
+    if(out.length>=TOTAL_HOMES) break;
+    if(out.some(h=>Math.hypot(h.wx-wx,h.wy-wy)<1400)) continue;      // spread across the borough
+    if(!roadNear(wx,wy,(NEAR-14)/S)) continue;                          // reachable from a road
+    out.push({wx,wy,x:0,y:0,hold:0,done:false});
+  }
+  out.forEach(placeOnScreen);
+  return out;
+}
+function placeOnScreen(h){[h.x,h.y]=toScreen(h.wx,h.wy);}
+function syncHouses(){
+  if(!G.houses) return;
+  for(const h of G.houses){ placeOnScreen(h); const vis=h.x>-60&&h.x<W()+60&&h.y>-60&&h.y<H()+60;
+    if(h.el){h.el.style.left=h.x+'px';h.el.style.top=h.y+'px';h.el.style.display=vis?'':'none';}
+    if(h.ring){h.ring.style.left=h.x+'px';h.ring.style.top=h.y+'px';} }
+}
+function loadAt(pc,then){
+  loading=true; G.running=false; document.getElementById('travel').hidden=false;
+  document.getElementById('travel-to').textContent=pc;
+  tinyFrame.onload=()=>setTimeout(()=>{
+    const old=cam; cam=TH_DATA.postcodes[pc]; camPc=pc; mask=null; buildMask();
+    loading=false; document.getElementById('travel').hidden=true; then(old);
+  },2500);
+  tinyFrame.src='https://tiny.london/?q='+encodeURIComponent(pc);
+}
+function nearestPc(wx,wy,exclude){
+  let best=null,bd=1e18; for(const [pc,[x,y]] of PCS){ if(pc===exclude) continue; const d=(x-wx)**2+(y-wy)**2; if(d<bd){bd=d;best=pc;} } return best;
+}
+// walk off an edge: reload the map further along in that direction
+function edgeCheck(){
+  requestAnimationFrame(edgeCheck);
+  if(!G.running||loading||!G.me) return;
+  const me=G.me; let dx=0,dy=0;
+  if(me.x<EDGE) dx=-1; else if(me.x>W()-EDGE) dx=1;
+  if(me.y<70+EDGE) dy=-1; else if(me.y>H()-EDGE) dy=1;
+  if(!dx&&!dy) return;
+  const [mx,my]=toWorld(me.x,me.y);
+  const pc=nearestPc(mx+dx*W()*0.42/S, my+dy*H()*0.42/S, camPc);
+  const target=TH_DATA.postcodes[pc];
+  // only move if that postcode actually lies in the direction we walked (else: edge of the borough)
+  if((dx&&Math.sign(target[0]-cam[0])!==dx)||(dy&&Math.sign(target[1]-cam[1])!==dy)){ return; }
+  const worldMe=[mx,my], worldCh=G.chasers.map(c=>toWorld(c.x,c.y));
+  loadAt(pc,()=>{
+    [me.x,me.y]=toScreen(...worldMe); [me.x,me.y]=nearestRoad(Math.min(Math.max(me.x,EDGE+12),W()-EDGE-12),Math.min(Math.max(me.y,70+EDGE+12),H()-EDGE-12));
+    G.chasers.forEach((c,i)=>{ let [x,y]=toScreen(...worldCh[i]);
+      if(x<0||y<70||x>W()||y>H()||Math.hypot(x-me.x,y-me.y)<250){ // respawn on the far side of the screen
+        x=me.x<W()/2?W()-80:80; y=me.y<H()/2?H()-80:140; }
+      [c.x,c.y]=nearestRoad(x,y); draw(c,false); });
+    draw(me,false); syncHouses(); G.running=true;
+  });
+}
+requestAnimationFrame(edgeCheck);
+// compass to the nearest empty home
+function compass(){
+  requestAnimationFrame(compass);
+  const el=document.getElementById('compass'); if(!G.houses||!G.me||!cam){el.hidden=true;return;}
+  const [mx,my]=toWorld(G.me.x,G.me.y); let best=null,bd=1e18;
+  for(const h of G.houses){ if(h.done) continue; const d=Math.hypot(h.wx-mx,h.wy-my); if(d<bd){bd=d;best=h;} }
+  if(!best){el.hidden=true;return;}
+  el.hidden=false;
+  const ang=Math.atan2(best.wy-my,best.wx-mx)*180/Math.PI;
+  document.getElementById('compass-arrow').style.transform=`rotate(${ang}deg)`;
+  document.getElementById('compass-text').textContent=`Nearest empty home: about ${Math.round(bd*0.293/10)*10} m`;
+}
+requestAnimationFrame(compass);
+function show(id,overlay){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));
+  document.querySelectorAll('.overlay').forEach(o=>o.hidden=o.id!==overlay);
+  if(id!=='s-play'){ G.running=false; return; }
+  document.getElementById('clear-name').textContent=BOROUGHS[0][0];
+  if(overlay) return;
+  G.running=false;
+  if(!tinyFrame){
+    tinyFrame=document.createElement('iframe');
+    tinyFrame.title='tiny.london map';
+    tinyFrame.style.cssText='width:100%;height:100%;border:0;pointer-events:none;transition:filter .4s';
+    applyDark();
+    document.getElementById('map').appendChild(tinyFrame);
+  }
+  const start=()=>{ newGame(); syncHouses(); };
+  if(camPc!==START_PC) loadAt(START_PC,start); else start();
+}
+addEventListener('resize',()=>{ mask=null; syncHouses(); });
+</script>
+<div style="position:fixed;right:8px;bottom:8px;z-index:9;display:flex;gap:8px;align-items:center;font:14px var(--body);background:var(--night);padding:4px 8px">
+  <button id="darkbtn" style="font:9px var(--head);padding:6px 8px;box-shadow:none;background:var(--block-2);color:var(--text)" onclick="dark=!dark;applyDark()">Light map</button>
+  <span>Map: tiny.london by Boris Starkov. Roads: OpenStreetMap.</span>
+</div>
+</body>
+</html>
