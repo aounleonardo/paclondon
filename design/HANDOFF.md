@@ -1,4 +1,4 @@
-# Empty Homes: dev handoff
+# Back London: dev handoff
 
 Open `handoff/screens.html` in a browser. The buttons bottom right jump to each screen (remove that nav in the game).
 
@@ -74,5 +74,5 @@ Open `handoff/screens-tinylondon.html`. Play goes into **Islington**, starting a
 
 ## Deck
 
-- `deck/empty-homes-deck.pdf`: 7-slide pitch (open, problem, solution, what it is, how it works, demo, stay in touch). Live app: https://paclondon.netlify.app
+- `deck/back-london-deck.pdf`: 7-slide pitch (open, problem, solution, what it is, how it works, demo, stay in touch). Live app: https://paclondon.netlify.app
 - `deck/index.html`: the same deck as a web page, with the animated sprites. Open it in a browser: arrow keys or click to move, F for full screen.
