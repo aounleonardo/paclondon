@@ -20,6 +20,7 @@ function vacantUrls(boroughId: string): string[] {
   return [
     configured,
     `/api/borough/${boroughId}/vacant-houses`,
+    `${import.meta.env.BASE_URL}${boroughId}-vacant-houses.json`,
     `${import.meta.env.BASE_URL}vacant-houses.json`,
   ].filter((value): value is string => Boolean(value))
 }
@@ -54,10 +55,7 @@ export async function loadBoroughVacantHouses(boroughId = DEFAULT_BOROUGH_ID): P
       continue
     }
     const houses = parseVacantHouses(payload as { houses?: Array<{ id?: string; label?: string; lat?: number; lng?: number }> })
-    // Prefer the API/blob payload even when empty (Bill may upload [] temporarily).
-    if (url.includes('/api/') || url.includes('vacant-houses')) {
-      return houses
-    }
+    // Skip empty blob/API payloads so we can fall through to bundled borough JSON.
     if (houses.length > 0) {
       return houses
     }
