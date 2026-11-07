@@ -80,6 +80,59 @@ Label|Search Query
 Label|lat|lng
 ```
 
+## Custom basemap (designer brief)
+
+The game draws **two layers**:
+
+1. **Basemap** — MapLibre GL, currently OpenStreetMap raster tiles (`src/map/mapController.ts`).
+2. **Game overlay** — a canvas on top (roads path, player, ghosts, vacant houses). Designers do **not** need to draw Pac-Man, ghosts, or house markers in the map art; those stay in code.
+
+To replace the look when Illustrator / custom art is ready, keep **real lat/lng** (Web Mercator / EPSG:3857). Gameplay roads still come from OpenStreetMap Overpass data.
+
+### What to deliver
+
+Pick **one** of these (simplest first):
+
+| Option | Deliverable | Notes |
+| --- | --- | --- |
+| **A. Raster tile set** | `{z}/{x}/{y}.png` (or WebP) pyramid | Drop-in swap for the current OSM URL. Preferred for v1. |
+| **B. MapLibre style JSON** | `style.json` + hosted glyphs/sprites/sources | Full control (vector or raster). We point MapLibre at that style URL. |
+| **C. Single borough image** | One large georeferenced image + bounds | Fine for Tower Hamlets demo only; needs north/south/east/west corners in lat/lng. |
+
+### Specs for Option A (recommended)
+
+- **Projection:** Web Mercator (same as Google Maps / Mapbox / OSM).
+- **Tile size:** 256×256 or 512×512 px.
+- **Zoom range for play:** at least **z15–z18** (gameplay sits around 17–18). Lower zooms (z12–14) nice for browsing but optional.
+- **Coverage for MVP:** Tower Hamlets / Bethnal Green area is enough to start. Wider London can come later.
+- **Anchor:** include the area around **Newspeak House** (`51.525134, -0.071273`).
+- **Content:** streets, blocks, landmarks as desired. Prefer a relatively calm background so blue paths and purple/green houses stay readable.
+- **Attribution:** tell us the credit line (e.g. “Map © Studio Name”) so we can show it in the map corner.
+
+### How engineering swaps it in
+
+Today the style is a small inline object in `src/map/mapController.ts`:
+
+```ts
+tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png']
+```
+
+Replace that URL with your tile endpoint (or load a hosted MapLibre `style.json`). No change to vacant-house or road graph logic is required for a visual-only swap.
+
+### What not to bake into the map art
+
+- Player / ghost sprites  
+- Vacant (purple) / reported (green) house markers  
+- The thick blue playable path  
+
+Those are drawn by the game canvas so they can animate and update during play.
+
+### Reference mood
+
+[tiny.london](https://tiny.london) is a useful **mood board** (illustrated / pixel city). We are not embedding that project; we only want a similar custom look if you produce our own tiles.
+
+Design decisions for vacant-house gameplay live in `TODO.md`.
+
 ## Testing
 
 ```bash
