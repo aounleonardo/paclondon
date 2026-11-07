@@ -57,13 +57,24 @@ Production files are generated into `dist/`.
 
 This is a **static frontend app**. No custom backend server is required.
 
-You can deploy `dist/` to:
+### Netlify
 
-- GitHub Pages
-- Netlify
-- Vercel
-- Cloudflare Pages
-- Any static hosting or CDN
+Repo includes `netlify.toml`. In the Netlify UI (or CLI):
+
+1. **New site from Git** → connect `aounleonardo/paclondon`, branch `main`
+2. Build settings (filled from `netlify.toml` if detected):
+   - **Build command:** `npm run build`
+   - **Publish directory:** `dist`
+   - **Node version:** 22 (set in `netlify.toml`)
+3. Deploy
+
+No env vars are required for the MVP. The app calls Overpass / Nominatim from the browser.
+
+For a GitHub Pages-style subpath instead, set `VITE_BASE_PATH=/your-repo-name/` in the host’s env and rebuild.
+
+### Other hosts
+
+You can also deploy `dist/` to GitHub Pages, Vercel, Cloudflare Pages, or any static CDN.
 
 Note: the app fetches road and geocoding data directly from public services in the browser, so client-side network access is required.
 
