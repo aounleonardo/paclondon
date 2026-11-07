@@ -47,9 +47,9 @@ The game's own canvas (sprites, dots) is separate and unaffected.
 - Borough empty-home counts (borough screen) and the 2010 / now stats (clear screen) come from the vacancy dataset.
 - Score, time, lives on the play HUD are static.
 
-## tiny.london version (Tower Hamlets)
+## tiny.london version (Islington, also Tower Hamlets)
 
-Open `handoff/screens-tinylondon.html`. Play goes straight into Tower Hamlets, starting at Whitechapel.
+Open `handoff/screens-tinylondon.html`. Play goes into **Islington**, starting at Angel (EC1V 1NY): `handoff/islington-data.js` (~21k road segments, ~10k homes, 239 postcodes). Add `?borough=tower-hamlets` to the URL for Tower Hamlets (starts at Whitechapel). Same data format, so another borough is one more data file.
 
 - The map is tiny.london's own page in an iframe (their UI and credits stay). It states no licence: OK for the hackathon demo, ask the author (Boris Starkov) before publishing publicly.
 - Characters can only walk on roads: `handoff/tower-hamlets-data.js` holds ~29k OpenStreetMap road segments, ~12.7k homes and 341 postcodes for the whole borough, projected into tiny.london map pixels with the projection the site publishes at https://tiny.london/map.json. Measured zoom for `?q=<postcode>` views: 0.482 screen px per map px (same at any window size).

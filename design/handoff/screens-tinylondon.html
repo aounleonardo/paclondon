@@ -8,7 +8,10 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.21.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@5.21.1/dist/maplibre-gl.js"></script>
 <script src="pixel-map-style.js"></script>
-<script src="tower-hamlets-data.js"></script>
+<script>
+  // borough data: Islington by default, ?borough=tower-hamlets for Tower Hamlets
+  document.write('<script src="'+(new URLSearchParams(location.search).get('borough')==='tower-hamlets'?'tower-hamlets-data.js':'islington-data.js')+'"><\/script>');
+</script>
 <style>
 /* Style A: Night bus. All colours here, nowhere else. */
 :root{
@@ -215,7 +218,7 @@ const SHEETS='../assets/characters/';
 const PLAYERS=['player_1','player_2','player_3'];
 const CHASERS=[['politician','The Politician'],['landlord','The Landlord'],['nimby','The NIMBY']];
 // [name, lng, lat] town centres. Counts are placeholders.
-const BOROUGHS=[['Tower Hamlets',-0.0612,51.5194]];
+const BOROUGHS=[['Islington',0,0]];
 let player='player_1', borough=0, map;
 
 const pl=document.getElementById('players');
@@ -407,19 +410,22 @@ document.getElementById('keep').onclick=()=>{ showOverlay(''); resetPositions();
 </script>
 
 <script>
-/* tiny.london variant, whole of Tower Hamlets. The map is tiny.london's own page, embedded (their UI and credits
+/* tiny.london variant, one whole borough (Islington by default). The map is tiny.london's own page, embedded (their UI and credits
    intact). tiny.london states no licence: fine for a hackathon demo, get the author's OK before publishing it publicly.
    Embeds tiny.london's own page (their UI and credits intact). The page can only be pointed somewhere by
    loading it with ?q=<postcode>, so the borough is explored screen by screen: walk off an edge and the
    map reloads centred on the nearest postcode in that direction.
    Roads, homes and postcodes are OpenStreetMap / postcodes.io data projected with tiny.london's published
    projection (map.json). World units = tiny.london image pixels. Measured zoom for postcode views: 0.482. */
-const S=TH_DATA.S, START_PC='E1 1DB', TOTAL_HOMES=20, EDGE=26;
-TH_DATA.postcodes[START_PC]=[120566,56396]; // Whitechapel, measured start view
-const PCS=Object.entries(TH_DATA.postcodes);
+const BD=(typeof BOROUGH_DATA!=='undefined')?BOROUGH_DATA:Object.assign({name:'Tower Hamlets',start:'E1 1DB'},TH_DATA);
+if(!BD.postcodes[BD.start]) BD.postcodes[BD.start]=[120566,56396]; // Tower Hamlets start: Whitechapel, measured
+const S=BD.S, START_PC=BD.start, TOTAL_HOMES=20, EDGE=26;
+BOROUGHS.length=0; BOROUGHS.push([BD.name,0,0]);
+document.querySelectorAll('#boroughs button span:first-child').forEach(e=>e.textContent=BD.name);
+const PCS=Object.entries(BD.postcodes);
 let tinyFrame=null, cam=null, camPc=null, mask=null, maskW=0, maskH=0, loading=false;
 // roads in world coords with bounding boxes
-const TH_ROADS=TH_DATA.roads.map(r=>{const pts=[[r[1],r[2]]];for(let k=3;k<r.length;k+=2){const q=pts[pts.length-1];pts.push([q[0]+r[k],q[1]+r[k+1]]);}
+const TH_ROADS=BD.roads.map(r=>{const pts=[[r[1],r[2]]];for(let k=3;k<r.length;k+=2){const q=pts[pts.length-1];pts.push([q[0]+r[k],q[1]+r[k+1]]);}
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const[x,y]of pts){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);}return{w:r[0],pts,x0,y0,x1,y1};});
 const toScreen=(x,y)=>[(x-cam[0])*S+W()/2,(y-cam[1])*S+H()/2];
 const toWorld=(x,y)=>[(x-W()/2)/S+cam[0],(y-H()/2)/S+cam[1]];
@@ -447,7 +453,7 @@ for(const r of TH_ROADS) for(let k=1;k<r.pts.length;k++){const[a,b]=[r.pts[k-1],
   for(let t=0;t<=n;t++){const x=a[0]+(b[0]-a[0])*t/n,y=a[1]+(b[1]-a[1])*t/n;const key=((x/CELL)|0)+','+((y/CELL)|0);if(!RH.has(key))RH.set(key,[]);RH.get(key).push([x,y]);}}
 function roadNear(x,y,d){const cx=(x/CELL)|0,cy=(y/CELL)|0;for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){for(const[px,py]of RH.get((cx+i)+','+(cy+j))||[]){if(Math.hypot(px-x,py-y)<d)return true;}}return false;}
 function placeHouses(){
-  const homes=TH_DATA.homes.slice();
+  const homes=BD.homes.slice();
   for(let i=homes.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[homes[i],homes[j]]=[homes[j],homes[i]];}
   const out=[];
   for(const [wx,wy] of homes){
@@ -470,7 +476,7 @@ function loadAt(pc,then){
   loading=true; G.running=false; document.getElementById('travel').hidden=false;
   document.getElementById('travel-to').textContent=pc;
   tinyFrame.onload=()=>setTimeout(()=>{
-    const old=cam; cam=TH_DATA.postcodes[pc]; camPc=pc; mask=null; buildMask();
+    const old=cam; cam=BD.postcodes[pc]; camPc=pc; mask=null; buildMask();
     loading=false; document.getElementById('travel').hidden=true; then(old);
   },2500);
   tinyFrame.src='https://tiny.london/?q='+encodeURIComponent(pc);
@@ -488,7 +494,7 @@ function edgeCheck(){
   if(!dx&&!dy) return;
   const [mx,my]=toWorld(me.x,me.y);
   const pc=nearestPc(mx+dx*W()*0.42/S, my+dy*H()*0.42/S, camPc);
-  const target=TH_DATA.postcodes[pc];
+  const target=BD.postcodes[pc];
   // only move if that postcode actually lies in the direction we walked (else: edge of the borough)
   if((dx&&Math.sign(target[0]-cam[0])!==dx)||(dy&&Math.sign(target[1]-cam[1])!==dy)){ return; }
   const worldMe=[mx,my], worldCh=G.chasers.map(c=>toWorld(c.x,c.y));
