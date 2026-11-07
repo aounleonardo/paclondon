@@ -2,7 +2,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import './style.css'
 import { SynthAudio } from './audio/synthAudio'
 import { fetchRoadData, loadAddressPresets, searchPlaces } from './data/overpass'
-import { loadPrecomputedMaze } from './data/precomputedMaze'
+import { attachVacantHouses, defaultBoroughId, loadBoroughMaze, loadBoroughVacantHouses } from './data/boroughData'
 import { loadVacantHouses, selectVacantHousesForPlay } from './data/vacantHouses'
 import { GameEngine } from './game/gameEngine'
 import { generatePlayableMap } from './generator/generatePlayableMap'
@@ -540,11 +540,15 @@ async function loadDefaultMaze(): Promise<boolean> {
   stopLoop()
   audio.setAmbience(false)
   try {
-    const precomputed = await loadPrecomputedMaze()
+    const boroughId = defaultBoroughId()
+    const precomputed = await loadBoroughMaze(boroughId)
     if (!precomputed) {
       return false
     }
-    applyPlayableMap(precomputed.map)
+    const houses = await loadBoroughVacantHouses(boroughId)
+    vacantCatalog = houses.length > 0 ? houses : vacantCatalog
+    const map = attachVacantHouses(precomputed.map, vacantCatalog)
+    applyPlayableMap(map)
     setMessageKey('message.precomputedReady', { label: precomputed.label })
     return true
   } catch {

@@ -32,22 +32,22 @@ const map: PlayableMap = {
 describe('parsePrecomputedMaze', () => {
   it('accepts a valid precomputed maze payload', () => {
     const parsed = parsePrecomputedMaze({
-      id: 'newspeak-house',
-      label: 'Newspeak House, Tower Hamlets',
+      id: 'islington',
+      label: 'Islington',
       generatedAt: '2026-11-07T00:00:00.000Z',
       viewport,
       map,
     })
 
-    expect(parsed?.id).toBe('newspeak-house')
+    expect(parsed?.id).toBe('islington')
     expect(parsed?.map.vacantHouses).toHaveLength(1)
     expect(parsed?.map.spawnNodeId).toBe('1')
   })
 
   it('resets vacant house status to vacant on load', () => {
     const parsed = parsePrecomputedMaze({
-      id: 'newspeak-house',
-      label: 'Newspeak House',
+      id: 'islington',
+      label: 'Islington',
       viewport,
       map: {
         ...map,
@@ -60,8 +60,8 @@ describe('parsePrecomputedMaze', () => {
 
   it('drops houses farther than the report radius from playable roads', () => {
     const parsed = parsePrecomputedMaze({
-      id: 'newspeak-house',
-      label: 'Newspeak House',
+      id: 'islington',
+      label: 'Islington',
       viewport,
       map: {
         ...map,

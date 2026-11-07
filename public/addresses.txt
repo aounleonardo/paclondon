@@ -4,14 +4,12 @@
 # label|query
 # label|lat|lng
 
-Newspeak House, Tower Hamlets|51.525134|-0.071273
+Emirates Stadium, Islington|51.555|-0.10833
+Angel, Islington|51.5325|-0.1058
+Highbury & Islington|51.546|-0.103
 Shibuya Crossing, Tokyo|Shibuya Crossing, Tokyo, Japan
 Asakusa, Tokyo|Asakusa, Tokyo, Japan
 Le Marais, Paris|Le Marais, Paris, France
 Montmartre, Paris|Montmartre, Paris, France
 Greenwich Village, New York|Greenwich Village, Manhattan, New York, USA
 Covent Garden, London|Covent Garden, London, UK
-Gothic Quarter, Barcelona|Barri Gotic, Barcelona, Spain
-Trastevere, Rome|Trastevere, Rome, Italy
-Ximending, Taipei|Ximending, Taipei, Taiwan
-Author's Hometown|台灣新北市新莊區迴龍 中正路

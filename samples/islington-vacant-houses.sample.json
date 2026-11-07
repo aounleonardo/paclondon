@@ -1,0 +1,26 @@
+{
+  "id": "islington",
+  "label": "Islington",
+  "kind": "vacant-houses",
+  "generatedAt": "2026-11-07T00:00:00.000Z",
+  "houses": [
+    {
+      "id": "is-001",
+      "label": "Example near Emirates Stadium / Holloway",
+      "lat": 51.555,
+      "lng": -0.10833
+    },
+    {
+      "id": "is-002",
+      "label": "Example near Upper Street / Angel",
+      "lat": 51.5342,
+      "lng": -0.104
+    },
+    {
+      "id": "is-003",
+      "label": "Example near Highbury Corner",
+      "lat": 51.5465,
+      "lng": -0.1025
+    }
+  ]
+}
