@@ -1,3 +1,4 @@
+import { chooseGhostHomesNear } from './ghostSpawns'
 import { MAX_HOUSE_DISTANCE_FROM_ROAD_METERS } from '../generator/filterReachableVacantHouses'
 import type { BonusFruit, BonusFruitType, Direction, EntityState, EntityTravel, FloatingScore, GameEvent, GameState, GeoPoint, GhostMode, GhostState, PlayableMap, RoadGraphEdge, RoadGraphNode, VacantProperty, VisualEffect } from '../types'
 
@@ -74,19 +75,6 @@ function directionBetween(a: GeoPoint, b: GeoPoint): Direction {
   return dy >= 0 ? 'up' : 'down'
 }
 
-function nearestNode(nodes: RoadGraphNode[], target: GeoPoint): RoadGraphNode {
-  let best = nodes[0]
-  let bestDistance = Number.POSITIVE_INFINITY
-  for (const node of nodes) {
-    const gap = distanceMeters(node, target)
-    if (gap < bestDistance) {
-      bestDistance = gap
-      best = node
-    }
-  }
-  return best
-}
-
 function chooseDirectionalNeighbor(node: RoadGraphNode, candidates: RoadGraphNode[], direction: Direction): RoadGraphNode | null {
   const desired = DIRECTION_VECTORS[direction]
   let best: RoadGraphNode | null = null
@@ -153,7 +141,6 @@ export class GameEngine {
   private readonly edgeByNodes = new Map<string, RoadGraphEdge>()
   private readonly pellets = new Map<string, { id: string; edgeId: string; lng: number; lat: number; power: boolean }>()
   private readonly recentEvents: GameEvent[] = []
-  private readonly scatterTargetIds: string[]
   private lastTimestamp = 0
   private spawnProtectedUntil = 0
   private ghostsReleasedAt = 0
@@ -176,7 +163,6 @@ export class GameEngine {
       this.edgeByNodes.set(`${edge.from}:${edge.to}`, edge)
       this.edgeByNodes.set(`${edge.to}:${edge.from}`, edge)
     }
-    this.scatterTargetIds = this.buildScatterTargets()
     this.seedPellets()
     this.totalPelletsAtLevelStart = this.pellets.size
     this.state = this.createInitialState()
@@ -229,8 +215,21 @@ export class GameEngine {
     }
   }
 
+  private ghostHomeNodeIds(): string[] {
+    const spawn = this.requireNode(this.map.spawnNodeId)
+    const picked = chooseGhostHomesNear(
+      [...this.nodeMap.values()],
+      spawn,
+      4,
+    )
+    if (picked.length > 0) {
+      return picked
+    }
+    return this.map.ghostHomeNodeIds
+  }
+
   private buildGhosts(): GhostState[] {
-    return this.map.ghostHomeNodeIds.map((nodeId, index) => {
+    return this.ghostHomeNodeIds().map((nodeId, index) => {
       const node = this.requireNode(nodeId)
       return {
         id: `ghost-${index}`,
@@ -257,19 +256,6 @@ export class GameEngine {
 
   private findEdge(fromId: string, toId: string): RoadGraphEdge | null {
     return this.edgeByNodes.get(`${fromId}:${toId}`) ?? null
-  }
-
-  private buildScatterTargets(): string[] {
-    const traversableNodes = [...this.nodeMap.values()].filter((node) => node.neighbors.length > 0)
-    const chooseFor = (target: GeoPoint): string =>
-      nearestNode(traversableNodes, target).id
-
-    return [
-      chooseFor({ lng: this.map.bounds.west, lat: this.map.bounds.north }),
-      chooseFor({ lng: this.map.bounds.east, lat: this.map.bounds.north }),
-      chooseFor({ lng: this.map.bounds.west, lat: this.map.bounds.south }),
-      chooseFor({ lng: this.map.bounds.east, lat: this.map.bounds.south }),
-    ]
   }
 
   private directionalTarget(startNodeId: string, direction: Direction, steps: number): string {
@@ -412,9 +398,7 @@ export class GameEngine {
       ?? this.state.pacman.travel?.toNodeId
       ?? this.map.spawnNodeId
     const aheadTargetId = this.directionalTarget(pacmanTargetNodeId, this.state.pacman.pendingDirection, 3)
-    const currentNodeId = ghost.currentNodeId ?? ghost.homeNodeId
 
-    const ghostIndex = Number(ghost.id.replace('ghost-', '')) % 4
     if (ghost.mode === 'eyes') {
       return ghost.homeNodeId
     }
@@ -423,18 +407,11 @@ export class GameEngine {
       return candidates[Math.floor(Math.random() * candidates.length)]?.id ?? ghost.homeNodeId
     }
 
-    if (ghostIndex === 0) {
-      return pacmanTargetNodeId
-    }
+    const ghostIndex = Number(ghost.id.replace('ghost-', '')) % 4
     if (ghostIndex === 1) {
       return aheadTargetId
     }
-    if (ghostIndex === 2) {
-      return this.scatterTargetIds[2] ?? pacmanTargetNodeId
-    }
-    return distanceMeters(this.requireNode(currentNodeId), this.requireNode(pacmanTargetNodeId)) < 120
-      ? pacmanTargetNodeId
-      : (this.scatterTargetIds[1] ?? pacmanTargetNodeId)
+    return pacmanTargetNodeId
   }
 
   private startTravel(entity: EntityState | GhostState, nextNodeId: string): boolean {

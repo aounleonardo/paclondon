@@ -1,3 +1,4 @@
+import { chooseGhostHomesNear } from '../game/ghostSpawns'
 import type { GeoPoint, PlayableMap, RoadData, RoadGraphEdge, RoadGraphNode, SourceMode, VacantProperty, Viewport } from '../types'
 import { filterReachableVacantHouses } from './filterReachableVacantHouses'
 import { bridgeRoadGraphGaps } from './bridgeRoadGraphGaps'
@@ -205,11 +206,8 @@ function nearestNode(nodes: RoadGraphNode[], target: GeoPoint): RoadGraphNode {
   return best
 }
 
-function chooseGhostHomes(nodes: RoadGraphNode[], center: GeoPoint): string[] {
-  const byDistance = [...nodes]
-    .filter((node) => node.neighbors.length > 0)
-    .sort((a, b) => distanceMeters(a, center) - distanceMeters(b, center))
-  return byDistance.slice(0, 4).map((node) => node.id)
+function chooseGhostHomes(nodes: RoadGraphNode[], anchor: GeoPoint): string[] {
+  return chooseGhostHomesNear(nodes, anchor, 4)
 }
 
 function chooseSpawnNode(nodes: RoadGraphNode[], center: GeoPoint, ghostHomeIds: string[]): RoadGraphNode {
@@ -270,8 +268,8 @@ export function generatePlayableMap(viewport: Viewport, roadData: RoadData, opti
   const nodes = prepared.roadData.nodes
   const edges = prepared.roadData.edges
   const center = viewport.center
-  const ghostHomeNodeIds = chooseGhostHomes(nodes, center)
-  const spawnNode = chooseSpawnNode(nodes, center, ghostHomeNodeIds)
+  const spawnNode = chooseSpawnNode(nodes, center, [])
+  const ghostHomeNodeIds = chooseGhostHomes(nodes, spawnNode)
   const vacantCandidates = (options.vacantHouses ?? []).map((house) => ({ ...house, status: 'vacant' as const }))
   const vacantHouses = filterReachableVacantHouses(vacantCandidates, nodes, edges)
   return {
