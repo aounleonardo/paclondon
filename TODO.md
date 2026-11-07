@@ -88,11 +88,12 @@ There are **two** separate issues:
 3. **Block-grid abstraction** (Pac-Man feel) — Keep major junctions only; turn each city block into something closer to a **rectangle with 4 corners**. Player runs the perimeter, not every alley. Closest to “one square with four corners.”
 4. **Bend collapse** — Still useful after any of the above: remove degree-2 wiggle nodes so remaining roads are long clean edges.
 
-**Recommendation for playful Pac-Man:** **(1) + (3)** — filter to main highways, then abstract to a coarser junction graph so navigation is a few turns per block, not dozens. Vacant houses stay at real lat/lng; player only needs to get “within X m” on the simplified street.
+**Recommendation for playful Pac-Man:** **(1) + (3)** — filter to main highways, then abstract to a coarser junction graph so navigation is a few turns per block, not dozens.
+
+**Reachability filter (implemented):** after maze generation, vacant houses farther than **~20 m** from any playable road edge are dropped so purple markers only appear where the player can report them.
 
 - [ ] Agree target feel: **real dense streets** vs **simplified Pac-Man blocks**?
 - [ ] If simplified: how aggressive? (e.g. min block edge ~40–60 m, drop alleys, merge parallels under ~12 m)
-- [ ] Vacant houses off the simplified path are OK as long as proximity still works? (assumed yes)
 
 ---
 
@@ -104,11 +105,109 @@ Keep OSM for now. When Illustrator assets arrive, replace the MapLibre basemap; 
 
 ---
 
+## Replacing player & ghost sprites
+
+Sprites are drawn in code today (`src/render/canvasRenderer.ts`: `drawPacman`, `drawGhost`), not loaded from image files.
+
+### What to give engineering
+
+| Asset | Suggested deliverable | Notes |
+| --- | --- | --- |
+| Player | PNG/WebP (or sprite sheet) | Transparent background. Prefer square frames, e.g. **64×64** or **128×128**. |
+| Ghosts | One sheet or 4 separate images | Optional: separate frames for chase / frightened / eyes. |
+| Directions | 4 facings **or** one art we rotate | Up / down / left / right if the character has a facing. |
+
+### Optional extras
+
+- Mouth-open / mouth-closed frames for a chomp cycle  
+- Death animation frames  
+- Frightened (blue/flash) ghost variant  
+- “Eyes only” ghost variant when eaten  
+
+### How we plug them in
+
+1. Drop files under e.g. `public/sprites/` (`player.png`, `ghost-red.png`, …).  
+2. Load with `new Image()` / `fetch` in the renderer.  
+3. Replace the canvas path-drawing in `drawPacman` / `drawGhost` with `drawImage(...)`, still using the same lat/lng → screen projection.  
+4. Keep hitboxes / sizes close to current radii (~20 px player, ~16 px ghost head) so collisions still feel right, or tell us the intended on-screen size in metres/pixels.
+
+Until custom art arrives, the procedural Pac-Man / ghost drawings stay as the default.
+
+---
+
+## Borough boundaries — how to pass limits
+
+We want play constrained to **one borough** (MVP: Tower Hamlets). Best handoff formats, simplest first:
+
+### Option A — GeoJSON polygon (preferred)
+
+One file per borough, or one FeatureCollection:
+
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Tower Hamlets", "id": "tower-hamlets" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-0.08, 51.54],
+          [-0.02, 51.54],
+          [-0.02, 51.48],
+          [-0.08, 51.48],
+          [-0.08, 51.54]
+        ]]
+      }
+    }
+  ]
+}
+```
+
+- Coordinates: **`[longitude, latitude]`** (GeoJSON order), WGS84.  
+- Use an official borough outline if you have one (e.g. from London Datastore / Ordnance Survey open data), or a simplified polygon is fine for gameplay.  
+- Multipolygon boroughs are OK (`MultiPolygon`).
+
+Put files in e.g. `public/boroughs/tower-hamlets.geojson` and tell us the path + which borough is default.
+
+### Option B — Bounding box only (quick & rough)
+
+```text
+name|south|west|north|east
+Tower Hamlets|51.48|-0.08|51.55|-0.01
+```
+
+Good for a first clamp; less accurate on diagonal borough edges.
+
+### Option C — Point + radius
+
+Only for a throwaway demo (“everything within 1.2 km of Newspeak House”). Not ideal for real borough limits.
+
+### What we’ll do with the data
+
+1. Clamp map pan / generate viewport to the polygon (or bbox).  
+2. Filter Overpass roads and vacant houses to inside the borough.  
+3. Optionally draw a soft border / dim outside the borough.
+
+**Please send:** GeoJSON (Option A) for Tower Hamlets first; we can add more boroughs the same way later.
+
+---
+
+## Controls note
+
+- **Hold Space** — stand still to complete the 1s vacant-house report.  
+- Arrow keys / WASD release the hold and move again.  
+- While playing, the camera **follows the player** (zoom stays where the player set it).
+
+---
+
 ## Suggested MVP cut
 
 1. Tower Hamlets map centered on Newspeak House  
-2. Mock 4 purple vacant houses nearby  
-3. 1s dwell + fill ring → green; keep greens across lives  
-4. Win when all 4 reported; ghosts/lives still active  
+2. Mock 4 purple vacant houses nearby (filtered to maze-reachable only)  
+3. Hold Space 1s + fill ring → green; keep greens across lives  
+4. Win when all reported; ghosts/lives still active  
 5. Road graph simplification so streets look/play cleaner  
-6. Defer real vacant data + custom basemap until those pipelines are ready  
+6. Defer real vacant data + custom basemap / sprites until those pipelines are ready  
+
